@@ -44,10 +44,7 @@ public class Product extends BaseEntity {
     }
 
     public void changeStock(int stock) {
-        if (stock < 0) {
-            throw new CoreException(ProductErrorCode.INVALID_STOCK);
-        }
-        this.stock = stock;
+        updateStock(stock);
     }
 
     public boolean canDecrease(int quantity) {
@@ -58,6 +55,14 @@ public class Product extends BaseEntity {
         if (!canDecrease(quantity)) {
             throw new CoreException(ProductErrorCode.OUT_OF_STOCK);
         }
-        this.stock -= quantity;
+        updateStock(stock - quantity);
+    }
+
+    // 재고를 바꾸는 모든 행동이 거치는 한 곳. "재고는 0 이상"(PRD-05)을 여기서만 지킨다.
+    private void updateStock(int newStock) {
+        if (newStock < 0) {
+            throw new CoreException(ProductErrorCode.INVALID_STOCK);
+        }
+        this.stock = newStock;
     }
 }
