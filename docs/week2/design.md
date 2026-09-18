@@ -265,7 +265,7 @@ Order ── 품목 금액 합계 / 포인트 결제액 · 결제 시각 (결제
 | USR-01 | 좋아요 · 포인트 · 주문 | 식별이 없거나 없는 사용자의 요청은 거절한다 | User | 유스케이스의 협력 |
 | BRD-01 | 관리자 브랜드 수정 | 삭제되지 않은 브랜드만 수정한다 | Brand | 자기 상태의 검사 |
 | BRD-02 | 관리자 상품 생성 / 관리자 브랜드 삭제 | 삭제되지 않은 상품은 삭제되지 않은 브랜드에 속한다. 상품 생성 시 브랜드가 삭제되지 않았는지, 브랜드 삭제 시 삭제되지 않은 상품(재고 0 포함)이 없는지 확인한다 | Brand / Product | 유스케이스의 협력 |
-| BRD-03 | 관리자 브랜드 생성·수정 | 이름은 공백뿐이 아니고 20자 이하다 | Brand | 자기 상태의 검사 |
+| BRD-03 | 관리자 브랜드 생성·수정 | 이름은 공백뿐이 아니고 20자 이하다. 설명은 선택이며 255자 이하다 | Brand | 자기 상태의 검사 |
 | PRD-01 | 관리자 상품 생성·수정 | 이름은 공백뿐이 아니고 50자 이하다. 가격은 0원 이상 1억 원 이하다 | Product | 자기 상태의 검사 |
 | PRD-02 | 관리자 상품 수정 | 삭제되지 않은 상품만 수정한다 | Product | 자기 상태의 검사 |
 | PRD-03 | 관리자 상품 수정 | 상품의 브랜드는 바뀌지 않는다 | Product | 자기 상태의 검사 |
@@ -767,9 +767,9 @@ GET  /api/v1/orders/{id}          주문 조회    → 품목·금액·상태·�
 | method · path | 입력 | 성공 | 대표 오류 |
 |---|---|---|---|
 | `GET /api-admin/v1/brands` | `page`, `size` | 200, 목록 + 페이징 정보 | `BAD_REQUEST` 400 |
-| `POST /api-admin/v1/brands` | `{ "name", "description"(선택) }` | 200, 만든 브랜드 | `INVALID_BRAND_NAME` 400, `BAD_REQUEST` 400 |
+| `POST /api-admin/v1/brands` | `{ "name", "description"(선택) }` | 200, 만든 브랜드 | `INVALID_BRAND_NAME` 400, `INVALID_BRAND_DESCRIPTION` 400, `BAD_REQUEST` 400 |
 | `GET /api-admin/v1/brands/{brandId}` | 경로 변수 | 200, 브랜드 | `BRAND_NOT_FOUND` 404 |
-| `PUT /api-admin/v1/brands/{brandId}` | `{ "name", "description"(선택) }` | 200, 수정된 브랜드 | `BRAND_NOT_FOUND` 404, `INVALID_BRAND_NAME` 400 |
+| `PUT /api-admin/v1/brands/{brandId}` | `{ "name", "description"(선택) }` | 200, 수정된 브랜드 | `BRAND_NOT_FOUND` 404, `INVALID_BRAND_NAME` 400, `INVALID_BRAND_DESCRIPTION` 400 |
 | `DELETE /api-admin/v1/brands/{brandId}` | 경로 변수 | 200 | `BRAND_NOT_FOUND` 404, `BRAND_HAS_PRODUCTS` 409 |
 
 **상품**
@@ -795,12 +795,13 @@ GET  /api/v1/orders/{id}          주문 조회    → 품목·금액·상태·�
 | 대상 | 범위 | 규칙 |
 |---|---|---|
 | 브랜드 이름 | 공백뿐이 아니고 20자 이하 | BRD-03 |
-| 브랜드 설명 | 선택 | - |
+| 브랜드 설명 | 선택. 255자 이하 | BRD-03 |
 | 상품 이름 | 공백뿐이 아니고 50자 이하 | PRD-01 |
 | 상품 가격 | 0원 이상 1억 원 이하 | PRD-01 |
 | 재고 | 0 이상 | PRD-05 |
 
 - **앞뒤 공백을 자르지 않는다.** 길이에는 공백이 포함된다. 공백뿐인 이름은 거절한다.
+- **브랜드 설명은 255자 이하다.** 상한이 없으면 컬럼 길이(varchar 255)를 넘는 설명이 DB 오류(500)가 된다. 계약에 범위를 드러내고 다른 필드처럼 도메인에서 거절한다.
 - **이름 중복을 허용한다.** 브랜드·상품은 식별자로 구분한다. 논리 삭제된 행과 이름이 겹치는 문제도 생기지 않는다(2.5).
   - **감수하는 비용:** 관리자가 같은 이름의 브랜드를 실수로 두 번 만들 수 있다.
 - **가격 0원을 허용한다.** 증정품 같은 상품을 둘 수 있다. 0원 상품만 담은 주문은 합계 0원으로 확정된다(ORD-04 참고).
@@ -863,6 +864,7 @@ GET  /api/v1/orders/{id}          주문 조회    → 품목·금액·상태·�
 | 코드 | HTTP | 상황 |
 |---|---|---|
 | `INVALID_BRAND_NAME` | 400 | 브랜드 이름이 공백뿐이거나 20자 초과 |
+| `INVALID_BRAND_DESCRIPTION` | 400 | 브랜드 설명이 255자 초과 |
 | `INVALID_PRODUCT_NAME` | 400 | 상품 이름이 공백뿐이거나 50자 초과 |
 | `INVALID_PRICE` | 400 | 가격이 0원 미만이거나 1억 원 초과 |
 | `INVALID_STOCK` | 400 | 재고가 0 미만 |

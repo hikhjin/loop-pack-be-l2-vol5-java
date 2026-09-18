@@ -20,6 +20,8 @@ public final class ErrorStatusMapper {
         Map.entry(ErrorType.CONFLICT, HttpStatus.CONFLICT),
         Map.entry(BrandErrorCode.BRAND_NOT_FOUND, HttpStatus.NOT_FOUND),
         Map.entry(BrandErrorCode.INVALID_BRAND_NAME, HttpStatus.BAD_REQUEST),
+        Map.entry(BrandErrorCode.INVALID_BRAND_DESCRIPTION, HttpStatus.BAD_REQUEST),
+        Map.entry(BrandErrorCode.BRAND_HAS_PRODUCTS, HttpStatus.CONFLICT),
         Map.entry(ProductErrorCode.PRODUCT_NOT_FOUND, HttpStatus.NOT_FOUND),
         Map.entry(ProductErrorCode.INVALID_PRODUCT_NAME, HttpStatus.BAD_REQUEST),
         Map.entry(ProductErrorCode.INVALID_PRICE, HttpStatus.BAD_REQUEST),

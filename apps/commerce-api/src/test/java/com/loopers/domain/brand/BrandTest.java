@@ -55,6 +55,26 @@ class BrandTest {
             assertThat(result.getErrorCode()).isEqualTo(BrandErrorCode.INVALID_BRAND_NAME);
         }
 
+        @DisplayName("설명이 255자 이하이면, 생성된다.")
+        @Test
+        void createsBrand_whenDescriptionIsWithinLimit() {
+            // act
+            Brand brand = new Brand("브랜드", "가".repeat(255));
+
+            // assert
+            assertThat(brand.getDescription()).hasSize(255);
+        }
+
+        @DisplayName("설명이 255자를 넘으면, INVALID_BRAND_DESCRIPTION 예외가 발생한다.")
+        @Test
+        void throwsInvalidBrandDescription_whenDescriptionExceedsLimit() {
+            // act
+            CoreException result = assertThrows(CoreException.class, () -> new Brand("브랜드", "가".repeat(256)));
+
+            // assert
+            assertThat(result.getErrorCode()).isEqualTo(BrandErrorCode.INVALID_BRAND_DESCRIPTION);
+        }
+
         @DisplayName("이름이 20자를 넘으면, INVALID_BRAND_NAME 예외가 발생한다.")
         @Test
         void throwsInvalidBrandName_whenNameExceedsLimit() {

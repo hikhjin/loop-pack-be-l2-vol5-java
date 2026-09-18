@@ -10,6 +10,7 @@ import jakarta.persistence.Table;
 public class Brand extends BaseEntity {
 
     private static final int MAX_NAME_LENGTH = 20;
+    private static final int MAX_DESCRIPTION_LENGTH = 255;
 
     private String name;
     private String description;
@@ -18,6 +19,7 @@ public class Brand extends BaseEntity {
 
     public Brand(String name, String description) {
         validateName(name);
+        validateDescription(description);
         this.name = name;
         this.description = description;
     }
@@ -39,6 +41,7 @@ public class Brand extends BaseEntity {
             throw new CoreException(BrandErrorCode.BRAND_NOT_FOUND);
         }
         validateName(name);
+        validateDescription(description);
         this.name = name;
         this.description = description;
     }
@@ -47,6 +50,13 @@ public class Brand extends BaseEntity {
     private static void validateName(String name) {
         if (name == null || name.isBlank() || name.length() > MAX_NAME_LENGTH) {
             throw new CoreException(BrandErrorCode.INVALID_BRAND_NAME);
+        }
+    }
+
+    // 설명은 선택이다. 컬럼 길이(varchar 255)를 넘으면 DB 오류가 되므로 먼저 거절한다
+    private static void validateDescription(String description) {
+        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+            throw new CoreException(BrandErrorCode.INVALID_BRAND_DESCRIPTION);
         }
     }
 }
