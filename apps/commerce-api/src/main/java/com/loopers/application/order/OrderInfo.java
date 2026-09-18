@@ -8,6 +8,7 @@ import java.util.List;
 
 public record OrderInfo(
     Long id,
+    Long userId,
     String status,
     long totalAmount,
     Long paymentAmount,
@@ -24,6 +25,7 @@ public record OrderInfo(
     public static OrderInfo from(Order order) {
         return new OrderInfo(
             order.getId(),
+            order.getUserId(),
             order.getStatus().name(),
             order.getTotalAmount(),
             order.getPaymentAmount(),

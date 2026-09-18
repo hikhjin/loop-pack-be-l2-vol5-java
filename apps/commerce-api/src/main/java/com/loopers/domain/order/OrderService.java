@@ -10,6 +10,8 @@ import com.loopers.domain.product.ProductService;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -84,6 +86,25 @@ public class OrderService {
         point.pay(paymentAmount);
         order.confirm(paymentAmount, ZonedDateTime.now());
         return order;
+    }
+
+    /** 요청자 본인의 주문만 조회한다. 타인의 주문은 없는 주문과 같다 (설계 6.1). */
+    @Transactional(readOnly = true)
+    public Order getMyOrder(Long userId, Long orderId) {
+        return orderRepository.findByIdAndUserId(orderId, userId)
+            .orElseThrow(() -> new CoreException(OrderErrorCode.ORDER_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public Order getOrder(Long orderId) {
+        return orderRepository.findById(orderId)
+            .orElseThrow(() -> new CoreException(OrderErrorCode.ORDER_NOT_FOUND));
+    }
+
+    /** 품목을 읽는 요약은 트랜잭션 안에서 만든다 (open-in-view 가 꺼져 있다). */
+    @Transactional(readOnly = true)
+    public Page<OrderSummary> getOrderSummaries(Long userId, OrderStatus status, Pageable pageable) {
+        return orderRepository.findPage(userId, status, pageable).map(OrderSummary::from);
     }
 
     private static CoreException failureOf(ErrorCode errorCode, OrderItem item) {

@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.order;
 
 import com.loopers.application.order.OrderInfo;
+import com.loopers.application.order.OrderSummaryInfo;
 import com.loopers.domain.order.OrderService.OrderRequestLine;
 
 import java.time.ZonedDateTime;
@@ -42,6 +43,28 @@ public class OrderV1Dto {
                 info.items().stream()
                     .map(item -> new ItemResponse(item.productId(), item.productName(), item.unitPrice(), item.quantity(), item.amount()))
                     .toList()
+            );
+        }
+    }
+
+    public record OrderSummaryResponse(
+        Long id,
+        String status,
+        long totalAmount,
+        Long paymentAmount,
+        int itemCount,
+        String representativeProductName,
+        ZonedDateTime orderedAt
+    ) {
+        public static OrderSummaryResponse from(OrderSummaryInfo info) {
+            return new OrderSummaryResponse(
+                info.id(),
+                info.status(),
+                info.totalAmount(),
+                info.paymentAmount(),
+                info.itemCount(),
+                info.representativeProductName(),
+                info.orderedAt()
             );
         }
     }

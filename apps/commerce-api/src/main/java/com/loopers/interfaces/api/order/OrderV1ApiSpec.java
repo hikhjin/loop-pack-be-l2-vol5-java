@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.order;
 
 import com.loopers.interfaces.api.ApiResponse;
+import com.loopers.interfaces.api.PageResponse;
 import com.loopers.interfaces.api.auth.LoginUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -21,6 +22,23 @@ public interface OrderV1ApiSpec {
         description = "재고 · 포인트를 차감하고 CONFIRMED 로 바꿉니다. 상품 때문에 실패하면 data.productId 로 처음 실패한 상품을 알립니다."
     )
     ApiResponse<OrderV1Dto.OrderResponse> confirmOrder(
+        @Parameter(hidden = true) LoginUser loginUser,
+        @Schema(description = "주문 ID") Long orderId
+    );
+
+    @Operation(
+        summary = "내 주문 목록",
+        description = "status 를 생략하면 결제를 마친 CONFIRMED 만 보여줍니다. DRAFT 로 확정 전 주문을 볼 수 있습니다. 최근 주문 순입니다."
+    )
+    ApiResponse<PageResponse<OrderV1Dto.OrderSummaryResponse>> getMyOrders(
+        @Parameter(hidden = true) LoginUser loginUser,
+        @Schema(description = "주문 상태: CONFIRMED(기본), DRAFT") String status,
+        @Schema(description = "페이지 (1부터)") int page,
+        @Schema(description = "페이지 크기 (최대 100)") int size
+    );
+
+    @Operation(summary = "내 주문 상세", description = "없는 주문과 타인의 주문은 ORDER_NOT_FOUND 입니다. 품목은 주문 시점의 상품명 · 단가입니다.")
+    ApiResponse<OrderV1Dto.OrderResponse> getMyOrder(
         @Parameter(hidden = true) LoginUser loginUser,
         @Schema(description = "주문 ID") Long orderId
     );

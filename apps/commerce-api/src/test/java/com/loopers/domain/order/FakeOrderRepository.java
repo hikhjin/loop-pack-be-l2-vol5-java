@@ -1,8 +1,13 @@
 package com.loopers.domain.order;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -25,6 +30,21 @@ public class FakeOrderRepository implements OrderRepository {
     @Override
     public Optional<Order> findByIdAndUserId(Long orderId, Long userId) {
         return Optional.ofNullable(orders.get(orderId)).filter(order -> Objects.equals(order.getUserId(), userId));
+    }
+
+    @Override
+    public Optional<Order> findById(Long orderId) {
+        return Optional.ofNullable(orders.get(orderId));
+    }
+
+    @Override
+    public Page<Order> findPage(Long userId, OrderStatus status, Pageable pageable) {
+        List<Order> matched = orders.values().stream()
+            .filter(order -> userId == null || Objects.equals(order.getUserId(), userId))
+            .filter(order -> status == null || order.getStatus() == status)
+            .sorted(Comparator.comparing(Order::getId).reversed())
+            .toList();
+        return new PageImpl<>(matched, pageable, matched.size());
     }
 
     public int count() {

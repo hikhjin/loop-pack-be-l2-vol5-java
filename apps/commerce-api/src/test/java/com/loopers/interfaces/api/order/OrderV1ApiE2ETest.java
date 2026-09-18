@@ -252,4 +252,70 @@ class OrderV1ApiE2ETest {
             assertThat(stockOf(first)).isEqualTo(9);
         }
     }
+
+    @DisplayName("GET /api/v1/orders")
+    @Nested
+    class GetMyOrders {
+        @DisplayName("status 를 생략하면 CONFIRMED 만, DRAFT 를 주면 확정 전 주문만 돌려준다.")
+        @Test
+        void filtersByStatus() throws Exception {
+            charge(10_000L);
+            Long confirmedId = createOrderId(itemsOf(first.getId(), 1));
+            confirm(user, confirmedId).andExpect(status().isOk());
+            Long draftId = createOrderId(itemsOf(second.getId(), 1));
+
+            mvc.perform(get("/api/v1/orders").header(USER_ID_HEADER, String.valueOf(user.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(confirmedId))
+                .andExpect(jsonPath("$.data.items[0].itemCount").value(1))
+                .andExpect(jsonPath("$.data.items[0].representativeProductName").value("첫 번째 상품"))
+                .andExpect(jsonPath("$.data.items[0].paymentAmount").value(1_000));
+
+            mvc.perform(get("/api/v1/orders").param("status", "DRAFT").header(USER_ID_HEADER, String.valueOf(user.getId())))
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(draftId));
+        }
+
+        @DisplayName("모르는 status 면, 400 과 BAD_REQUEST 를 돌려준다.")
+        @Test
+        void rejectsUnknownStatus() throws Exception {
+            mvc.perform(get("/api/v1/orders").param("status", "PAID").header(USER_ID_HEADER, String.valueOf(user.getId())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.meta.errorCode").value("BAD_REQUEST"));
+        }
+
+        @DisplayName("다른 사용자의 주문은 목록에 나오지 않는다.")
+        @Test
+        void excludesOthersOrders() throws Exception {
+            createOrderId(itemsOf(first.getId(), 1));
+            User other = userJpaRepository.save(new User());
+
+            mvc.perform(get("/api/v1/orders").param("status", "DRAFT").header(USER_ID_HEADER, String.valueOf(other.getId())))
+                .andExpect(jsonPath("$.data.totalCount").value(0));
+        }
+    }
+
+    @DisplayName("GET /api/v1/orders/{orderId}")
+    @Nested
+    class GetMyOrder {
+        @DisplayName("내 주문이면 품목 전체를 돌려주고, 타인의 주문이면 404 와 ORDER_NOT_FOUND 를 돌려준다.")
+        @Test
+        void returnsOwnOrderOnly() throws Exception {
+            Long orderId = createOrderId(itemsOf(first.getId(), 2, second.getId(), 1));
+            User other = userJpaRepository.save(new User());
+
+            mvc.perform(get("/api/v1/orders/" + orderId).header(USER_ID_HEADER, String.valueOf(user.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(2))
+                .andExpect(jsonPath("$.data.items[0].productName").value("첫 번째 상품"))
+                .andExpect(jsonPath("$.data.items[0].unitPrice").value(1_000))
+                .andExpect(jsonPath("$.data.items[0].amount").value(2_000))
+                .andExpect(jsonPath("$.data.userId").doesNotExist());
+
+            mvc.perform(get("/api/v1/orders/" + orderId).header(USER_ID_HEADER, String.valueOf(other.getId())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.meta.errorCode").value("ORDER_NOT_FOUND"));
+        }
+    }
 }
