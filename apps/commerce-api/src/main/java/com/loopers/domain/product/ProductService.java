@@ -34,6 +34,17 @@ public class ProductService {
         return productRepository.findActiveWithBrand(brandId, pageable);
     }
 
+    @Transactional(readOnly = true)
+    public ProductView getActiveProductView(Long productId) {
+        return productRepository.findActiveView(productId)
+            .orElseThrow(() -> new CoreException(ProductErrorCode.PRODUCT_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductView> getActiveProductViews(Long brandId, ProductSort sort, Pageable pageable) {
+        return productRepository.findActiveViews(brandId, sort, pageable);
+    }
+
     /** 살아 있는 브랜드는 BrandService 로 조회하고, 생성 입구의 확인은 Product 가 한 번 더 한다 (BRD-02). */
     @Transactional
     public Product create(Long brandId, String name, long price) {

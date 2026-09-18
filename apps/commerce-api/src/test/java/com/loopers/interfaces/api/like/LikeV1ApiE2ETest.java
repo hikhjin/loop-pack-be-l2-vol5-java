@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -171,6 +172,48 @@ class LikeV1ApiE2ETest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.productId").value(999_999))
                 .andExpect(jsonPath("$.data.likeCount").value(0));
+        }
+    }
+
+    @DisplayName("GET /api/v1/users/{userId}/likes")
+    @Nested
+    class GetMyLikes {
+        @DisplayName("내 좋아요 목록을 상품 요약 · 좋아요 시각과 함께 돌려주고, 삭제된 상품은 제외한다.")
+        @Test
+        void returnsMyLikes() throws Exception {
+            mvc.perform(asUser(post(likesOf(product.getId())))).andExpect(status().isOk());
+            Product deletedLater = productJpaRepository.save(new Product(brandJpaRepository.findAll().get(0), "삭제될 상품", 2_000L));
+            mvc.perform(asUser(post(likesOf(deletedLater.getId())))).andExpect(status().isOk());
+            deletedLater.delete();
+            productJpaRepository.save(deletedLater);
+
+            mvc.perform(asUser(get("/api/v1/users/" + user.getId() + "/likes")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].productId").value(product.getId()))
+                .andExpect(jsonPath("$.data.items[0].likeCount").value(1))
+                .andExpect(jsonPath("$.data.items[0].soldOut").value(true))
+                .andExpect(jsonPath("$.data.items[0].brand.name").value("브랜드"))
+                .andExpect(jsonPath("$.data.items[0].likedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.totalCount").value(1));
+        }
+
+        @DisplayName("경로의 userId 가 요청자 본인이 아니면, 404 와 USER_NOT_FOUND 를 돌려준다.")
+        @Test
+        void returnsUserNotFound_whenUserIdIsNotRequester() throws Exception {
+            User other = userJpaRepository.save(new User());
+
+            mvc.perform(asUser(get("/api/v1/users/" + other.getId() + "/likes")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.meta.errorCode").value("USER_NOT_FOUND"));
+        }
+
+        @DisplayName("식별이 없으면, 401 과 UNAUTHENTICATED 를 돌려준다.")
+        @Test
+        void returnsUnauthenticated_whenHeaderIsMissing() throws Exception {
+            mvc.perform(get("/api/v1/users/" + user.getId() + "/likes"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.meta.errorCode").value("UNAUTHENTICATED"));
         }
     }
 }

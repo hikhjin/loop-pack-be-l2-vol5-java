@@ -47,6 +47,17 @@ public class FakeProductRepository implements ProductRepository {
         return new PageImpl<>(active, pageable, active.size());
     }
 
+    // 좋아요 집계 · 정렬 조회는 쿼리의 동작이라 저장소 통합 테스트(실제 DB)에서 확인한다
+    @Override
+    public Optional<ProductView> findActiveView(Long productId) {
+        throw new UnsupportedOperationException("ProductRepositoryIntegrationTest 에서 확인한다");
+    }
+
+    @Override
+    public Page<ProductView> findActiveViews(Long brandId, ProductSort sort, Pageable pageable) {
+        throw new UnsupportedOperationException("ProductRepositoryIntegrationTest 에서 확인한다");
+    }
+
     public int count() {
         return products.size();
     }

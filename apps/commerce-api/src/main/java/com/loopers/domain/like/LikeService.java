@@ -2,6 +2,8 @@ package com.loopers.domain.like;
 
 import com.loopers.domain.product.ProductService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,11 @@ public class LikeService {
     @Transactional
     public void unlike(Long userId, Long productId) {
         likeRepository.find(userId, productId).ifPresent(likeRepository::delete);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<LikedProduct> getLikedProducts(Long userId, Pageable pageable) {
+        return likeRepository.findLikedProducts(userId, pageable);
     }
 
     /** 좋아요 수는 관계에서 센다 (설계 2.3). */
