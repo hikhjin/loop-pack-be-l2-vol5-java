@@ -207,6 +207,23 @@ class OrderV1ApiE2ETest {
             assertThat(stockOf(second)).isEqualTo(3);
         }
 
+        @DisplayName("생성 응답과 DB 에서 다시 읽은 확정 응답의 주문 시각이 같은 시간대(+09:00) 표기로 나간다.")
+        @Test
+        void writesSameTimeZone_forFreshAndReloadedEntity() throws Exception {
+            charge(10_000L);
+            String created = createOrder(itemsOf(first.getId(), 1)).andReturn().getResponse().getContentAsString();
+            JsonNode createdNode = objectMapper.readTree(created);
+            Long orderId = createdNode.at("/data/id").asLong();
+
+            String confirmed = confirm(user, orderId).andReturn().getResponse().getContentAsString();
+            JsonNode confirmedNode = objectMapper.readTree(confirmed);
+
+            String createdOrderedAt = createdNode.at("/data/orderedAt").asText();
+            assertThat(createdOrderedAt).endsWith("+09:00");
+            assertThat(confirmedNode.at("/data/orderedAt").asText()).isEqualTo(createdOrderedAt);
+            assertThat(confirmedNode.at("/data/paidAt").asText()).endsWith("+09:00");
+        }
+
         @DisplayName("재고가 부족하면, 409 와 OUT_OF_STOCK, 그 상품 식별자를 돌려주고 재고와 잔액은 그대로다.")
         @Test
         void returnsOutOfStock() throws Exception {
