@@ -404,8 +404,10 @@ infrastructure/product        ────────────────�
 - **업무 오류 코드를 따로 둔다.** 1주차 결정 1을 이어간다. `domain` 에서 생긴 실패마다 고유한 업무 오류 코드를 붙이고, 그 코드를 HTTP 상태로 바꾸는 일은 `interfaces` 의 변환 지점(`ApiControllerAdvice`)에서 한다.
   - **이유:** `ErrorType` 만 쓰면 "없는 주문"과 "매핑되지 않은 경로"가 같은 404·같은 코드가 된다. 요청자가 주문을 다시 찾아야 할지 쿠폰·상품을 바꿔야 할지 고를 수 없어 메시지 문자열로 분기하게 된다.
   - **감수하는 비용:** 코드 목록을 관리해야 하고, 새 실패를 추가할 때 기존 코드와 의미가 겹치지 않는지 확인해야 한다.
-  - 기존 `ErrorType` 을 확장할지 업무 코드 타입을 따로 둘지는 구현할 때 정한다.
-  - 기존 `ErrorType` 의 `code` 는 `Bad Request` 처럼 HTTP reason phrase를 쓴다. 6장은 `BAD_REQUEST` 처럼 적었으므로, 이 표기 차이도 구현할 때 함께 맞춘다.
+  - **구현:** 모든 코드는 HTTP를 모르는 `ErrorCode` 인터페이스(`support/error`)를 따른다. 업무 코드는 도메인마다 enum으로 두고, 공통 코드인 `ErrorType` 도 같은 인터페이스를 따르며 `HttpStatus` 를 갖지 않는다. `interfaces` 의 `ErrorStatusMapper` 가 코드를 HTTP 상태로 바꾸고, 대응표에 없는 코드는 500이다.
+  - **대응표 누락 방지:** `ErrorCode` 를 구현한 모든 enum의 모든 값이 대응표에 있는지 테스트가 확인한다(`ErrorStatusMapperTest`).
+  - **버린 대안:** 도메인별 enum이 `HttpStatus` 를 직접 가진다. 코드와 상태가 한 줄에 있어 추가가 쉽지만 도메인이 HTTP에 의존한다.
+  - **코드 표기는 enum 이름(`BAD_REQUEST`)으로 통일한다.** 기존 `ErrorType` 은 HTTP reason phrase(`Bad Request`)를 썼다. 1주차 관찰 테스트(`ContractClassificationTest`)의 기대값을 이 계약 변경에 맞춰 바꿨다.
 - **엔티티는 `interfaces` 로 나가지 않는다.** `application` 이 `~Info` 로 바꾸고, `interfaces` 가 응답 모델로 바꾼다.
 - **엔티티는 `modules:jpa` 의 `BaseEntity` 를 상속한다.** `domain` 에 JPA 애노테이션이 들어오지만 이번 범위에서는 그대로 둔다.
   - `BaseEntity` 의 `deletedAt` 과 멱등한 `delete()` 가 2.5의 논리 삭제 결정에 그대로 쓰인다.
