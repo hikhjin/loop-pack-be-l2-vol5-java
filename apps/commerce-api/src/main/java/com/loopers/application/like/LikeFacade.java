@@ -1,0 +1,21 @@
+package com.loopers.application.like;
+
+import com.loopers.domain.like.LikeService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+@RequiredArgsConstructor
+@Component
+public class LikeFacade {
+    private final LikeService likeService;
+
+    public LikeInfo like(Long userId, Long productId) {
+        likeService.like(userId, productId);
+        return new LikeInfo(productId, likeService.countLikes(productId));
+    }
+
+    public LikeInfo unlike(Long userId, Long productId) {
+        likeService.unlike(userId, productId);
+        return new LikeInfo(productId, likeService.countLikes(productId));
+    }
+}
