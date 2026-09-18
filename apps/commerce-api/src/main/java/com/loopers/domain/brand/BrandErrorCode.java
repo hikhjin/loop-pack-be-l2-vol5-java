@@ -1,0 +1,19 @@
+package com.loopers.domain.brand;
+
+import com.loopers.support.error.ErrorCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum BrandErrorCode implements ErrorCode {
+    BRAND_NOT_FOUND("존재하지 않는 브랜드입니다."),
+    INVALID_BRAND_NAME("브랜드 이름은 공백뿐일 수 없고 20자 이하여야 합니다.");
+
+    private final String message;
+
+    @Override
+    public String getCode() {
+        return name();
+    }
+}
