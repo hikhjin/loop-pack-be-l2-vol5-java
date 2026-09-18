@@ -2,6 +2,7 @@ package com.loopers.domain.product;
 
 import com.loopers.domain.BaseEntity;
 import com.loopers.domain.brand.Brand;
+import com.loopers.support.error.CoreException;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
@@ -43,14 +44,20 @@ public class Product extends BaseEntity {
     }
 
     public void changeStock(int stock) {
+        if (stock < 0) {
+            throw new CoreException(ProductErrorCode.INVALID_STOCK);
+        }
         this.stock = stock;
     }
 
     public boolean canDecrease(int quantity) {
-        return true;
+        return quantity > 0 && quantity <= stock;
     }
 
     public void decrease(int quantity) {
+        if (!canDecrease(quantity)) {
+            throw new CoreException(ProductErrorCode.OUT_OF_STOCK);
+        }
         this.stock -= quantity;
     }
 }
