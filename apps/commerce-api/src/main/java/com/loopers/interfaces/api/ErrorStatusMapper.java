@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api;
 
+import com.loopers.domain.product.ProductErrorCode;
 import com.loopers.support.error.ErrorCode;
 import com.loopers.support.error.ErrorType;
 import org.springframework.http.HttpStatus;
@@ -15,7 +16,9 @@ public final class ErrorStatusMapper {
         Map.entry(ErrorType.INTERNAL_ERROR, HttpStatus.INTERNAL_SERVER_ERROR),
         Map.entry(ErrorType.BAD_REQUEST, HttpStatus.BAD_REQUEST),
         Map.entry(ErrorType.NOT_FOUND, HttpStatus.NOT_FOUND),
-        Map.entry(ErrorType.CONFLICT, HttpStatus.CONFLICT)
+        Map.entry(ErrorType.CONFLICT, HttpStatus.CONFLICT),
+        Map.entry(ProductErrorCode.OUT_OF_STOCK, HttpStatus.CONFLICT),
+        Map.entry(ProductErrorCode.INVALID_STOCK, HttpStatus.BAD_REQUEST)
     );
 
     private ErrorStatusMapper() {}
