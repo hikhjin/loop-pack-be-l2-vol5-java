@@ -130,6 +130,19 @@ class AdminProductV1ApiE2ETest {
             assertThat(productJpaRepository.count()).isZero();
         }
 
+        @DisplayName("가격이 소수면, 소수점을 버려 받지 않고 400 과 BAD_REQUEST 를 돌려준다.")
+        @Test
+        void returnsBadRequest_whenPriceIsFractional() throws Exception {
+            Brand brand = saveBrand("브랜드");
+
+            mvc.perform(withBody(post(ENDPOINT), Map.of("brandId", brand.getId(), "name", "상품", "price", 1_000.5))
+                    .with(ADMIN).with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.meta.errorCode").value("BAD_REQUEST"));
+
+            assertThat(productJpaRepository.count()).isZero();
+        }
+
         @DisplayName("가격이 범위를 벗어나면, 400 과 INVALID_PRICE 를 돌려준다.")
         @Test
         void returnsInvalidPrice_whenPriceIsOutOfRange() throws Exception {
@@ -205,6 +218,19 @@ class AdminProductV1ApiE2ETest {
                 .andExpect(jsonPath("$.meta.errorCode").value("INVALID_STOCK"));
 
             assertThat(reload(product).getStock()).isEqualTo(5);
+        }
+
+        @DisplayName("소수면, 소수점을 버려 받지 않고 400 과 BAD_REQUEST 를 돌려주고 기존 재고가 유지된다.")
+        @Test
+        void rejectsFractionalStock() throws Exception {
+            Product product = saveProduct(saveBrand("브랜드"), "상품");
+
+            mvc.perform(withBody(put(ENDPOINT + "/" + product.getId() + "/stock"), Map.of("stock", 1.5))
+                    .with(ADMIN).with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.meta.errorCode").value("BAD_REQUEST"));
+
+            assertThat(reload(product).getStock()).isZero();
         }
 
         @DisplayName("삭제된 상품이면, 404 와 PRODUCT_NOT_FOUND 를 돌려준다. (PRD-04)")

@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api;
 
 import com.loopers.domain.brand.BrandErrorCode;
+import com.loopers.domain.point.PointErrorCode;
 import com.loopers.domain.product.ProductErrorCode;
 import com.loopers.domain.user.UserErrorCode;
 import com.loopers.support.error.ErrorCode;
@@ -29,7 +30,10 @@ public final class ErrorStatusMapper {
         Map.entry(ProductErrorCode.INVALID_PRICE, HttpStatus.BAD_REQUEST),
         Map.entry(ProductErrorCode.OUT_OF_STOCK, HttpStatus.CONFLICT),
         Map.entry(ProductErrorCode.INVALID_STOCK, HttpStatus.BAD_REQUEST),
-        Map.entry(UserErrorCode.USER_NOT_FOUND, HttpStatus.NOT_FOUND)
+        Map.entry(UserErrorCode.USER_NOT_FOUND, HttpStatus.NOT_FOUND),
+        Map.entry(PointErrorCode.INVALID_CHARGE_AMOUNT, HttpStatus.BAD_REQUEST),
+        Map.entry(PointErrorCode.BALANCE_LIMIT_EXCEEDED, HttpStatus.CONFLICT),
+        Map.entry(PointErrorCode.INSUFFICIENT_POINT, HttpStatus.CONFLICT)
     );
 
     private ErrorStatusMapper() {}
