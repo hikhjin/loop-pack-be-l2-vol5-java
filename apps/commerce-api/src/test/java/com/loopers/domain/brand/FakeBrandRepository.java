@@ -13,7 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /** DB 없이 브랜드 서비스의 협력을 확인하기 위한 저장 구현. */
-class FakeBrandRepository implements BrandRepository {
+public class FakeBrandRepository implements BrandRepository {
 
     private final Map<Long, Brand> brands = new LinkedHashMap<>();
     private final Set<Long> brandIdsWithActiveProduct = new HashSet<>();
@@ -44,7 +44,7 @@ class FakeBrandRepository implements BrandRepository {
         return brandIdsWithActiveProduct.contains(brandId);
     }
 
-    void addActiveProductTo(Long brandId) {
+    public void addActiveProductTo(Long brandId) {
         brandIdsWithActiveProduct.add(brandId);
     }
 }
