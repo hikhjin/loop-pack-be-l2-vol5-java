@@ -16,6 +16,7 @@ public final class ErrorStatusMapper {
     private static final Map<ErrorCode, HttpStatus> STATUSES = Map.ofEntries(
         Map.entry(ErrorType.INTERNAL_ERROR, HttpStatus.INTERNAL_SERVER_ERROR),
         Map.entry(ErrorType.BAD_REQUEST, HttpStatus.BAD_REQUEST),
+        Map.entry(ErrorType.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED),
         Map.entry(ErrorType.NOT_FOUND, HttpStatus.NOT_FOUND),
         Map.entry(ErrorType.CONFLICT, HttpStatus.CONFLICT),
         Map.entry(BrandErrorCode.BRAND_NOT_FOUND, HttpStatus.NOT_FOUND),

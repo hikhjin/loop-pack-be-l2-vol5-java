@@ -38,12 +38,13 @@ class ErrorStatusMapperTest {
             .isTrue());
     }
 
-    @DisplayName("공통 오류 코드는 기존과 같은 HTTP 상태로 바뀐다.")
+    @DisplayName("공통 오류 코드는 정해진 HTTP 상태로 바뀐다.")
     @Test
     void keepsStatusOfCommonErrorTypes() {
         assertAll(
             () -> assertThat(ErrorStatusMapper.statusOf(ErrorType.INTERNAL_ERROR)).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR),
             () -> assertThat(ErrorStatusMapper.statusOf(ErrorType.BAD_REQUEST)).isEqualTo(HttpStatus.BAD_REQUEST),
+            () -> assertThat(ErrorStatusMapper.statusOf(ErrorType.UNAUTHENTICATED)).isEqualTo(HttpStatus.UNAUTHORIZED),
             () -> assertThat(ErrorStatusMapper.statusOf(ErrorType.NOT_FOUND)).isEqualTo(HttpStatus.NOT_FOUND),
             () -> assertThat(ErrorStatusMapper.statusOf(ErrorType.CONFLICT)).isEqualTo(HttpStatus.CONFLICT)
         );
