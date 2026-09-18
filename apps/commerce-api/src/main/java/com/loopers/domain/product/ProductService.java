@@ -16,11 +16,14 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final BrandService brandService;
 
-    /** 없거나 삭제된 상품은 PRODUCT_NOT_FOUND. 다른 도메인도 이 조회를 쓴다 (설계 D-31). */
+    /**
+     * 없거나 삭제된 상품은 PRODUCT_NOT_FOUND. 다른 도메인도 이 조회를 쓴다 (설계 D-31).
+     * 여러 품목 중 어느 상품인지 알 수 있도록 상품 식별자를 부가 정보로 담는다 (설계 6.4).
+     */
     @Transactional(readOnly = true)
     public Product getActiveProduct(Long productId) {
         return productRepository.findActive(productId)
-            .orElseThrow(() -> new CoreException(ProductErrorCode.PRODUCT_NOT_FOUND));
+            .orElseThrow(() -> new CoreException(ProductErrorCode.PRODUCT_NOT_FOUND, null, ProductErrorDetail.of(productId)));
     }
 
     @Transactional(readOnly = true)
