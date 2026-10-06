@@ -20,6 +20,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,11 +35,43 @@ class OrderServiceTest {
 
     private static final Long USER_ID = 1L;
     private static final Long OTHER_USER_ID = 2L;
+    private static final ZonedDateTime CREATED_AT = ZonedDateTime.parse("2026-10-06T10:00:00+09:00[Asia/Seoul]");
+
+    /** 주문 생성 뒤 시간을 흘려 만료를 확인하기 위한 시계 */
+    private static class MutableClock extends Clock {
+        private Instant instant;
+        private final ZoneId zone;
+
+        MutableClock(ZonedDateTime start) {
+            this.instant = start.toInstant();
+            this.zone = start.getZone();
+        }
+
+        void advance(Duration duration) {
+            instant = instant.plus(duration);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
+    }
 
     private FakeProductRepository productRepository;
     private FakePointRepository pointRepository;
     private FakeOrderRepository orderRepository;
     private PointService pointService;
+    private MutableClock clock;
     private OrderService orderService;
     private Brand brand;
 
@@ -46,7 +83,8 @@ class OrderServiceTest {
         orderRepository = new FakeOrderRepository();
         pointService = new PointService(pointRepository);
         ProductService productService = new ProductService(productRepository, new BrandService(brandRepository));
-        orderService = new OrderService(orderRepository, productService, pointService);
+        clock = new MutableClock(CREATED_AT);
+        orderService = new OrderService(orderRepository, productService, pointService, clock);
         brand = brandRepository.save(new Brand("브랜드", null));
     }
 
@@ -284,6 +322,59 @@ class OrderServiceTest {
                 () -> assertThat(confirmed.getPaymentAmount()).isZero(),
                 () -> assertThat(free.getStock()).isEqualTo(3),
                 () -> assertThat(pointRepository.count()).isZero()
+            );
+        }
+
+        @DisplayName("생성 후 30분이 지났으면, ORDER_EXPIRED 예외가 발생하고 아무것도 바뀌지 않는다. (ORD-08)")
+        @Test
+        void throwsExpired_whenThirtyMinutesPassed() {
+            // arrange
+            Product first = saveProduct(1_000L, 10);
+            Product second = saveProduct(1_000L, 10);
+            pointService.charge(USER_ID, 10_000L);
+            Order order = createOrder(line(first, 1), line(second, 1));
+            clock.advance(Duration.ofMinutes(30));
+
+            // act
+            CoreException result = assertThrows(CoreException.class, () -> orderService.confirm(USER_ID, order.getId()));
+
+            // assert
+            assertThat(result.getErrorCode()).isEqualTo(OrderErrorCode.ORDER_EXPIRED);
+            assertNothingChanged(order, first, 10, second, 10, 10_000L);
+        }
+
+        @DisplayName("만료와 삭제된 상품이 함께 있으면, 만료를 먼저 알린다. (설계 5.3)")
+        @Test
+        void reportsExpiredBeforeDeletedProduct() {
+            // arrange
+            Product product = saveProduct(1_000L, 10);
+            Order order = createOrder(line(product, 1));
+            product.delete();
+            clock.advance(Duration.ofMinutes(30));
+
+            // act
+            CoreException result = assertThrows(CoreException.class, () -> orderService.confirm(USER_ID, order.getId()));
+
+            // assert
+            assertThat(result.getErrorCode()).isEqualTo(OrderErrorCode.ORDER_EXPIRED);
+        }
+
+        @DisplayName("만료 1초 전이면, 확정되고 결제 시각은 확정한 시각이다. (ORD-08)")
+        @Test
+        void confirms_justBeforeExpiry() {
+            // arrange
+            Product product = saveProduct(1_000L, 10);
+            pointService.charge(USER_ID, 10_000L);
+            Order order = createOrder(line(product, 1));
+            clock.advance(Duration.ofMinutes(30).minusSeconds(1));
+
+            // act
+            Order confirmed = orderService.confirm(USER_ID, order.getId());
+
+            // assert
+            assertAll(
+                () -> assertThat(confirmed.getStatus()).isEqualTo(OrderStatus.CONFIRMED),
+                () -> assertThat(confirmed.getPaidAt()).isEqualTo(CREATED_AT.plusMinutes(30).minusSeconds(1))
             );
         }
     }

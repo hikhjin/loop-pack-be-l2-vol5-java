@@ -12,6 +12,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +31,8 @@ public class Order extends BaseEntity {
 
     private static final int MIN_QUANTITY = 1;
     private static final int MAX_QUANTITY = 999;
+    /** 주문서는 생성 후 이 기간 동안만 확정할 수 있음 (설계 2.3, D-41) */
+    private static final Duration VALID_DURATION = Duration.ofMinutes(30);
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
@@ -40,6 +43,10 @@ public class Order extends BaseEntity {
 
     @Column(name = "total_amount", nullable = false)
     private long totalAmount;
+
+    /** 이 시각부터 확정할 수 없음. 만료 상태는 따로 두지 않고 확정 때 비교함 (설계 2.3, D-41) */
+    @Column(name = "expires_at", nullable = false)
+    private ZonedDateTime expiresAt;
 
     /** 실제로 차감한 금액. 확정 전에는 없다. 할인이 붙으면 합계와 갈라진다 (설계 5.5). */
     @Column(name = "payment_amount")
@@ -56,18 +63,20 @@ public class Order extends BaseEntity {
 
     protected Order() {}
 
-    private Order(Long userId, List<OrderItem> items) {
+    private Order(Long userId, List<OrderItem> items, ZonedDateTime createdAt) {
         this.userId = userId;
         this.status = OrderStatus.DRAFT;
         this.items = new ArrayList<>(items);
         this.totalAmount = items.stream().mapToLong(OrderItem::getAmount).sum();
+        this.expiresAt = createdAt.plus(VALID_DURATION);
     }
 
     /**
      * DRAFT 주문을 만든다. 재고 · 포인트는 차감하지 않는다.
      * 같은 상품의 품목은 처음 등장한 위치에 합산하고(ORD-03), 수량은 합산 후 기준으로 확인한다(ORD-02).
+     * 만료 시각은 생성 시각 + 30분으로 정함(ORD-08).
      */
-    public static Order draft(Long userId, List<OrderLine> lines) {
+    public static Order draft(Long userId, List<OrderLine> lines, ZonedDateTime createdAt) {
         if (lines == null || lines.isEmpty()) {
             throw new CoreException(OrderErrorCode.EMPTY_ORDER_ITEMS);
         }
@@ -82,7 +91,7 @@ public class Order extends BaseEntity {
             validateQuantity(line.quantity());
             items.add(new OrderItem(line.productId(), line.productName(), line.unitPrice(), line.quantity()));
         }
-        return new Order(userId, items);
+        return new Order(userId, items, createdAt);
     }
 
     public Long getUserId() {
@@ -105,6 +114,10 @@ public class Order extends BaseEntity {
         return paidAt;
     }
 
+    public ZonedDateTime getExpiresAt() {
+        return expiresAt;
+    }
+
     public List<OrderItem> getItems() {
         return Collections.unmodifiableList(items);
     }
@@ -113,10 +126,21 @@ public class Order extends BaseEntity {
         return status == OrderStatus.DRAFT;
     }
 
-    /** DRAFT 에서만 확정한다(ORD-07). 결제액과 결제 시각을 함께 남긴다. */
+    /** 현재 시각이 만료 시각 이상이면 만료로 봄. 정확히 30분이 된 순간부터 확정할 수 없음 (ORD-08) */
+    public boolean isExpired(ZonedDateTime now) {
+        return !now.isBefore(expiresAt);
+    }
+
+    /**
+     * DRAFT 에서만(ORD-07), 만료 전에만(ORD-08) 확정한다. 결제액과 결제 시각을 함께 남긴다.
+     * 결제 시각으로 만료를 판단하므로 확인 단계를 건너뛴 호출도 만료된 주문을 확정할 수 없음 (D-29)
+     */
     public void confirm(long paymentAmount, ZonedDateTime paidAt) {
         if (!isDraft()) {
             throw new CoreException(OrderErrorCode.ORDER_ALREADY_CONFIRMED);
+        }
+        if (isExpired(paidAt)) {
+            throw new CoreException(OrderErrorCode.ORDER_EXPIRED);
         }
         this.status = OrderStatus.CONFIRMED;
         this.paymentAmount = paymentAmount;

@@ -54,7 +54,7 @@ class OrderQueryIntegrationTest {
         Order order = orderRepository.save(Order.draft(userId, List.of(
             new OrderLine(10L, firstProductName, 1_000L, 1),
             new OrderLine(20L, "두 번째 품목", 2_000L, 1)
-        )));
+        ), ZonedDateTime.now()));
         if (confirmed) {
             transactionTemplate.executeWithoutResult(status ->
                 orderRepository.findById(order.getId()).orElseThrow().confirm(3_000L, ZonedDateTime.now()));

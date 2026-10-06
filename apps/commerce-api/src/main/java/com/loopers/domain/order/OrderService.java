@@ -15,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,6 +28,8 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductService productService;
     private final PointService pointService;
+    /** 만료 · 결제 시각의 기준. 테스트에서 고정할 수 있도록 주입받음 (설계 2.3) */
+    private final Clock clock;
 
     public record OrderRequestLine(Long productId, int quantity) {}
 
@@ -43,7 +46,7 @@ public class OrderService {
                 return new OrderLine(product.getId(), product.getName(), product.getPrice(), line.quantity());
             })
             .toList();
-        return orderRepository.save(Order.draft(userId, lines));
+        return orderRepository.save(Order.draft(userId, lines, ZonedDateTime.now(clock)));
     }
 
     /**
@@ -56,6 +59,11 @@ public class OrderService {
             .orElseThrow(() -> new CoreException(OrderErrorCode.ORDER_NOT_FOUND));
         if (!order.isDraft()) {
             throw new CoreException(OrderErrorCode.ORDER_ALREADY_CONFIRMED);
+        }
+        // 만료는 Order 자신의 상태라 상품 조회보다 먼저 봄 (설계 5.3)
+        ZonedDateTime now = ZonedDateTime.now(clock);
+        if (order.isExpired(now)) {
+            throw new CoreException(OrderErrorCode.ORDER_EXPIRED);
         }
 
         // 확인 단계: 상품 삭제(ORD-09) → 재고(ORD-10) → 잔액(ORD-11). 결제액은 주문서 합계이며 현재 가격과 비교하지 않음 (설계 2.3)
@@ -79,7 +87,7 @@ public class OrderService {
             products.get(item.getProductId()).decrease(item.getQuantity());
         }
         point.pay(paymentAmount);
-        order.confirm(paymentAmount, ZonedDateTime.now());
+        order.confirm(paymentAmount, now);
         return order;
     }
 
