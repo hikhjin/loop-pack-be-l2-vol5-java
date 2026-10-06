@@ -6,11 +6,14 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** DB 없이 상품 서비스의 협력을 확인하기 위한 저장 구현. */
 public class FakeProductRepository implements ProductRepository {
@@ -30,6 +33,13 @@ public class FakeProductRepository implements ProductRepository {
     @Override
     public Optional<Product> findActive(Long productId) {
         return Optional.ofNullable(products.get(productId)).filter(product -> !product.isDeleted());
+    }
+
+    @Override
+    public Set<Long> findActiveIds(Collection<Long> productIds) {
+        return productIds.stream()
+            .filter(productId -> findActive(productId).isPresent())
+            .collect(Collectors.toSet());
     }
 
     @Override

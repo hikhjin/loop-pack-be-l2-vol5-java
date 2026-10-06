@@ -9,6 +9,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Set;
+
 @RequiredArgsConstructor
 @Component
 public class ProductService {
@@ -24,6 +27,18 @@ public class ProductService {
     public Product getActiveProduct(Long productId) {
         return productRepository.findActive(productId)
             .orElseThrow(() -> new CoreException(ProductErrorCode.PRODUCT_NOT_FOUND, null, ProductErrorDetail.of(productId)));
+    }
+
+    /**
+     * 주어진 식별자 중 살아 있는 상품의 식별자. 대상 없음 예외를 던지지 않음.
+     * 주문 상세의 판매 여부처럼 삭제 여부만 알면 되는 조회가 쓰며, 삭제 조건은 다른 살아 있는 상품 조회와 같음 (설계 6.4, D-42)
+     */
+    @Transactional(readOnly = true)
+    public Set<Long> getActiveProductIds(Collection<Long> productIds) {
+        if (productIds.isEmpty()) {
+            return Set.of();
+        }
+        return productRepository.findActiveIds(productIds);
     }
 
     @Transactional(readOnly = true)

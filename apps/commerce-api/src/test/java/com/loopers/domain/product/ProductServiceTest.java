@@ -10,6 +10,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Set;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,6 +28,22 @@ class ProductServiceTest {
         brandRepository = new FakeBrandRepository();
         productRepository = new FakeProductRepository();
         productService = new ProductService(productRepository, new BrandService(brandRepository));
+    }
+
+    @DisplayName("살아 있는 상품 식별자를 물으면, 없거나 삭제된 상품은 빠지고 예외가 발생하지 않는다. (설계 6.4)")
+    @Test
+    void returnsOnlyActiveProductIds() {
+        // arrange
+        Brand brand = brandRepository.save(new Brand("브랜드", null));
+        Product active = productService.create(brand.getId(), "판매 중", 1_000L);
+        Product deleted = productService.create(brand.getId(), "판매 종료", 1_000L);
+        deleted.delete();
+
+        // act
+        Set<Long> result = productService.getActiveProductIds(List.of(active.getId(), deleted.getId(), 999L));
+
+        // assert
+        assertThat(result).containsExactly(active.getId());
     }
 
     @DisplayName("상품을 생성할 때, ")

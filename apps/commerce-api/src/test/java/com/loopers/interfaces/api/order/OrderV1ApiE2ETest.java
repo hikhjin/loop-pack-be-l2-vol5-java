@@ -328,11 +328,29 @@ class OrderV1ApiE2ETest {
                 .andExpect(jsonPath("$.data.items[0].productName").value("첫 번째 상품"))
                 .andExpect(jsonPath("$.data.items[0].unitPrice").value(1_000))
                 .andExpect(jsonPath("$.data.items[0].amount").value(2_000))
+                .andExpect(jsonPath("$.data.items[0].onSale").value(true))
                 .andExpect(jsonPath("$.data.userId").doesNotExist());
 
             mvc.perform(get("/api/v1/orders/" + orderId).header(USER_ID_HEADER, String.valueOf(other.getId())))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.meta.errorCode").value("ORDER_NOT_FOUND"));
+        }
+
+        @DisplayName("주문한 상품이 이후 삭제되었으면, 그 품목의 onSale 은 false 이고 나머지는 true 다. (설계 6.4)")
+        @Test
+        void marksDeletedProductAsNotOnSale() throws Exception {
+            // arrange
+            Long orderId = createOrderId(itemsOf(first.getId(), 1, second.getId(), 1));
+            Product deleted = productJpaRepository.findById(second.getId()).orElseThrow();
+            deleted.delete();
+            productJpaRepository.save(deleted);
+
+            // act & assert
+            mvc.perform(get("/api/v1/orders/" + orderId).header(USER_ID_HEADER, String.valueOf(user.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].onSale").value(true))
+                .andExpect(jsonPath("$.data.items[1].onSale").value(false))
+                .andExpect(jsonPath("$.data.items[1].productName").value("두 번째 상품"));
         }
     }
 }

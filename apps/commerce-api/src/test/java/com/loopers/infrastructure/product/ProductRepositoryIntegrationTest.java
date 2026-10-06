@@ -15,6 +15,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.List;
+import java.util.Set;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
@@ -56,6 +59,21 @@ class ProductRepositoryIntegrationTest {
             entityManager.persist(product);
             return product;
         });
+    }
+
+    @DisplayName("식별자 목록으로 살아 있는 상품을 물으면, 삭제된 상품과 없는 상품은 빠진다. (설계 6.4, D-35)")
+    @Test
+    void findsOnlyActiveIds() {
+        // arrange
+        Brand brand = saveBrand("브랜드");
+        Product active = saveProduct(brand, "판매 중", 0, false);
+        Product deleted = saveProduct(brand, "판매 종료", 0, true);
+
+        // act
+        Set<Long> result = productRepository.findActiveIds(List.of(active.getId(), deleted.getId(), 999L));
+
+        // assert
+        assertThat(result).containsExactly(active.getId());
     }
 
     @DisplayName("상품을 브랜드와 함께 조회하면, 저장한 값과 브랜드 이름이 다시 읽힌다.")

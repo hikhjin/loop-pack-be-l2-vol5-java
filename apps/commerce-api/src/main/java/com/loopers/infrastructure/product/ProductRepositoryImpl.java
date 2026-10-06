@@ -20,8 +20,11 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @RequiredArgsConstructor
 @Component
@@ -43,6 +46,11 @@ public class ProductRepositoryImpl implements ProductRepository {
     @Override
     public Optional<Product> findActive(Long productId) {
         return productJpaRepository.findByIdAndDeletedAtIsNull(productId);
+    }
+
+    @Override
+    public Set<Long> findActiveIds(Collection<Long> productIds) {
+        return new HashSet<>(productJpaRepository.findActiveIds(productIds));
     }
 
     @Override

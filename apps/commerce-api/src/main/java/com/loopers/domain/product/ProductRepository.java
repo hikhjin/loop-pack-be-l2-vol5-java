@@ -3,12 +3,17 @@ package com.loopers.domain.product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 
 public interface ProductRepository {
     Product save(Product product);
 
     Optional<Product> findActive(Long productId);
+
+    /** 주어진 식별자 중 삭제되지 않은 상품의 식별자. 없거나 삭제된 상품은 빠짐 */
+    Set<Long> findActiveIds(Collection<Long> productIds);
 
     Optional<ProductWithBrand> findActiveWithBrand(Long productId);
 
