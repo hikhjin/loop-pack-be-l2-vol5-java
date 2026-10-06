@@ -128,16 +128,4 @@ class OrderTest {
             );
         }
     }
-
-    @DisplayName("품목의 가격 일치 판단은 스냅샷 단가와 같을 때만 참이고, 오르거나 내려도 거짓이다. (ORD-09)")
-    @Test
-    void matchesOnlySamePrice() {
-        OrderItem item = Order.draft(USER_ID, List.of(line(1L, 1_000L, 1))).getItems().get(0);
-
-        assertAll(
-            () -> assertThat(item.isPriceMatched(1_000L)).isTrue(),
-            () -> assertThat(item.isPriceMatched(1_200L)).isFalse(),
-            () -> assertThat(item.isPriceMatched(800L)).isFalse()
-        );
-    }
 }

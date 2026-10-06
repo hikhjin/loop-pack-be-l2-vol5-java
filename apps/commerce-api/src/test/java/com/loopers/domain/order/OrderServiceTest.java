@@ -17,6 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 
@@ -175,7 +177,7 @@ class OrderServiceTest {
             );
         }
 
-        @DisplayName("상품이 삭제되었으면, 그 상품을 알리는 PRODUCT_NOT_FOUND 예외가 발생하고 아무것도 바뀌지 않는다. (ORD-08)")
+        @DisplayName("상품이 삭제되었으면, 그 상품을 알리는 PRODUCT_NOT_FOUND 예외가 발생하고 아무것도 바뀌지 않는다. (ORD-09)")
         @Test
         void throwsProductNotFound_whenProductIsDeleted() {
             // arrange
@@ -194,23 +196,26 @@ class OrderServiceTest {
             assertNothingChanged(order, first, 10, second, 10, 10_000L);
         }
 
-        @DisplayName("가격이 바뀌었으면 (인하 포함), 그 상품을 알리는 PRODUCT_PRICE_CHANGED 예외가 발생하고 아무것도 바뀌지 않는다. (ORD-09)")
-        @Test
-        void throwsPriceChanged_whenPriceDecreased() {
+        @DisplayName("생성 후 가격이 오르거나 내려도, 주문서 합계로 결제된다. (설계 2.3)")
+        @ParameterizedTest
+        @ValueSource(longs = {1_500L, 800L})
+        void paysOrderTotal_whenPriceChanged(long changedPrice) {
             // arrange
             Product first = saveProduct(1_000L, 10);
             Product second = saveProduct(1_000L, 10);
             pointService.charge(USER_ID, 10_000L);
-            Order order = createOrder(line(first, 1), line(second, 1));
-            second.update("상품", 800L);
+            Order order = createOrder(line(first, 1), line(second, 2));
+            second.update("상품", changedPrice);
 
             // act
-            CoreException result = assertThrows(CoreException.class, () -> orderService.confirm(USER_ID, order.getId()));
+            Order confirmed = orderService.confirm(USER_ID, order.getId());
 
             // assert
-            assertThat(result.getErrorCode()).isEqualTo(OrderErrorCode.PRODUCT_PRICE_CHANGED);
-            assertThat(failedProductId(result)).isEqualTo(second.getId());
-            assertNothingChanged(order, first, 10, second, 10, 10_000L);
+            assertAll(
+                () -> assertThat(confirmed.getStatus()).isEqualTo(OrderStatus.CONFIRMED),
+                () -> assertThat(confirmed.getPaymentAmount()).isEqualTo(3_000L),
+                () -> assertThat(pointService.getPoint(USER_ID).getBalance()).isEqualTo(7_000L)
+            );
         }
 
         @DisplayName("두 번째 품목의 재고가 부족하면, 그 상품을 알리는 OUT_OF_STOCK 예외가 발생하고 첫 번째 품목의 재고도 그대로다. (ORD-10)")

@@ -58,15 +58,10 @@ public class OrderService {
             throw new CoreException(OrderErrorCode.ORDER_ALREADY_CONFIRMED);
         }
 
-        // 확인 단계: 상품 삭제(ORD-08) → 가격(ORD-09) → 재고(ORD-10) → 잔액(ORD-11)
+        // 확인 단계: 상품 삭제(ORD-09) → 재고(ORD-10) → 잔액(ORD-11). 결제액은 주문서 합계이며 현재 가격과 비교하지 않음 (설계 2.3)
         Map<Long, Product> products = new LinkedHashMap<>();
         for (OrderItem item : order.getItems()) {
             products.put(item.getProductId(), productService.getActiveProduct(item.getProductId()));
-        }
-        for (OrderItem item : order.getItems()) {
-            if (!item.isPriceMatched(products.get(item.getProductId()).getPrice())) {
-                throw failureOf(OrderErrorCode.PRODUCT_PRICE_CHANGED, item);
-            }
         }
         for (OrderItem item : order.getItems()) {
             if (!products.get(item.getProductId()).canDecrease(item.getQuantity())) {
