@@ -3,7 +3,7 @@ package com.loopers.interfaces.api.order;
 import com.loopers.application.order.OrderDetailInfo;
 import com.loopers.application.order.OrderInfo;
 import com.loopers.application.order.OrderSummaryInfo;
-import com.loopers.domain.order.OrderService.OrderRequestLine;
+import com.loopers.application.order.OrderFacade.OrderRequestLine;
 
 import java.time.ZonedDateTime;
 import java.util.List;
