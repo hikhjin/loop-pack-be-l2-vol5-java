@@ -48,14 +48,9 @@ public class Point extends BaseEntity {
         }
     }
 
-    /** 0원 결제는 허용한다 (설계 D-30). */
-    public boolean canPay(long amount) {
-        return amount >= 0 && amount <= balance;
-    }
-
-    /** 같은 판단을 거쳐 거절하므로 잔액은 0 아래로 내려가지 않는다 (PNT-03). */
+    /** 0원 결제는 허용함 (설계 D-30). 음수이거나 잔액보다 많으면 거절하므로 잔액은 0 아래로 내려가지 않음 (PNT-03) */
     public void pay(long amount) {
-        if (!canPay(amount)) {
+        if (amount < 0 || amount > balance) {
             throw new CoreException(PointErrorCode.INSUFFICIENT_POINT);
         }
         this.balance -= amount;

@@ -126,22 +126,22 @@ public class Order extends BaseEntity {
         return status == OrderStatus.DRAFT;
     }
 
-    /** 현재 시각이 만료 시각 이상이면 만료로 봄. 정확히 30분이 된 순간부터 확정할 수 없음 (ORD-08) */
-    public boolean isExpired(ZonedDateTime now) {
-        return !now.isBefore(expiresAt);
-    }
-
     /**
-     * DRAFT 에서만(ORD-07), 만료 전에만(ORD-08) 확정한다. 결제액과 결제 시각을 함께 남긴다.
-     * 결제 시각으로 만료를 판단하므로 확인 단계를 건너뛴 호출도 만료된 주문을 확정할 수 없음 (D-29)
+     * DRAFT 가 아니면(ORD-07), 만료되었으면(ORD-08) 거절함. 상품 · 포인트를 다루기 전에 부를 수 있도록 따로 둠 (설계 5.3).
+     * 현재 시각이 만료 시각 이상이면 만료이며, 정확히 30분이 된 순간부터 확정할 수 없음
      */
-    public void confirm(long paymentAmount, ZonedDateTime paidAt) {
+    public void validateConfirmable(ZonedDateTime now) {
         if (!isDraft()) {
             throw new CoreException(OrderErrorCode.ORDER_ALREADY_CONFIRMED);
         }
-        if (isExpired(paidAt)) {
+        if (!now.isBefore(expiresAt)) {
             throw new CoreException(OrderErrorCode.ORDER_EXPIRED);
         }
+    }
+
+    /** 확정 가능한지 같은 검사를 거친 뒤 결제액과 결제 시각을 함께 남김 (ORD-12) */
+    public void confirm(long paymentAmount, ZonedDateTime paidAt) {
+        validateConfirmable(paidAt);
         this.status = OrderStatus.CONFIRMED;
         this.paymentAmount = paymentAmount;
         this.paidAt = paidAt;

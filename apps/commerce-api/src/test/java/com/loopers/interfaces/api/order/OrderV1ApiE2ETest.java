@@ -241,14 +241,21 @@ class OrderV1ApiE2ETest {
             assertThat(orderJpaRepository.findById(orderId).orElseThrow().isDraft()).isTrue();
         }
 
-        @DisplayName("잔액이 부족하면, 409 와 INSUFFICIENT_POINT 를 돌려준다.")
+        @DisplayName("잔액이 부족하면, 409 와 INSUFFICIENT_POINT 를 돌려주고 먼저 차감한 재고도 롤백되어 그대로다. (설계 5.4)")
         @Test
         void returnsInsufficientPoint() throws Exception {
-            Long orderId = createOrderId(itemsOf(first.getId(), 1));
+            charge(1_000L);
+            Long orderId = createOrderId(itemsOf(first.getId(), 1, second.getId(), 1));
 
             confirm(user, orderId)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.meta.errorCode").value("INSUFFICIENT_POINT"));
+
+            mvc.perform(get("/api/v1/points").header(USER_ID_HEADER, String.valueOf(user.getId())))
+                .andExpect(jsonPath("$.data.balance").value(1_000));
+            assertThat(stockOf(first)).isEqualTo(10);
+            assertThat(stockOf(second)).isEqualTo(5);
+            assertThat(orderJpaRepository.findById(orderId).orElseThrow().isDraft()).isTrue();
         }
 
         @DisplayName("타인의 주문이면 404 와 ORDER_NOT_FOUND, 이미 확정한 주문이면 409 와 ORDER_ALREADY_CONFIRMED 를 돌려준다.")

@@ -162,15 +162,17 @@ class OrderTest {
         }
     }
 
-    @DisplayName("만료 여부를 판단할 때, 생성 시각 + 30분 이상이면 만료이고 그 전이면 아니다. (ORD-08)")
+    @DisplayName("확정할 수 있는지 검사할 때, 생성 시각 + 30분 직전이면 통과하고 30분부터는 ORDER_EXPIRED 예외가 발생한다. (ORD-08)")
     @Test
-    void isExpiredFromThirtyMinutes() {
+    void rejectsFromThirtyMinutes() {
         Order order = draft(List.of(line(1L, 1_000L, 1)));
 
+        order.validateConfirmable(CREATED_AT.plusMinutes(30).minusSeconds(1));
         assertAll(
-            () -> assertThat(order.isExpired(CREATED_AT.plusMinutes(30).minusSeconds(1))).isFalse(),
-            () -> assertThat(order.isExpired(CREATED_AT.plusMinutes(30))).isTrue(),
-            () -> assertThat(order.isExpired(CREATED_AT.plusMinutes(31))).isTrue()
+            () -> assertThat(assertThrows(CoreException.class, () -> order.validateConfirmable(CREATED_AT.plusMinutes(30))).getErrorCode())
+                .isEqualTo(OrderErrorCode.ORDER_EXPIRED),
+            () -> assertThat(assertThrows(CoreException.class, () -> order.validateConfirmable(CREATED_AT.plusMinutes(31))).getErrorCode())
+                .isEqualTo(OrderErrorCode.ORDER_EXPIRED)
         );
     }
 }

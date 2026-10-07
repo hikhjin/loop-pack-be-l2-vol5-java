@@ -256,9 +256,10 @@ class OrderServiceTest {
             );
         }
 
-        @DisplayName("두 번째 품목의 재고가 부족하면, 그 상품을 알리는 OUT_OF_STOCK 예외가 발생하고 첫 번째 품목의 재고도 그대로다. (ORD-10)")
+        // 앞 품목의 차감은 트랜잭션 롤백이 되돌리므로, DB 기준의 "재고 · 잔액 그대로"는 OrderV1ApiE2ETest 에서 확인함 (설계 5.4)
+        @DisplayName("두 번째 품목의 재고가 부족하면, 그 상품을 알리는 OUT_OF_STOCK 예외가 발생하고 주문은 DRAFT 로 남는다. (ORD-10)")
         @Test
-        void throwsOutOfStock_withoutPartialDeduction() {
+        void throwsOutOfStock_withFailedProduct() {
             // arrange
             Product first = saveProduct(1_000L, 10);
             Product second = saveProduct(1_000L, 1);
@@ -271,7 +272,7 @@ class OrderServiceTest {
             // assert
             assertThat(result.getErrorCode()).isEqualTo(ProductErrorCode.OUT_OF_STOCK);
             assertThat(failedProductId(result)).isEqualTo(second.getId());
-            assertNothingChanged(order, first, 10, second, 1, 10_000L);
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.DRAFT);
         }
 
         @DisplayName("재고와 잔액이 둘 다 부족하면, 재고 부족을 먼저 알린다. (설계 5.3)")
@@ -289,7 +290,7 @@ class OrderServiceTest {
             assertThat(result.getErrorCode()).isEqualTo(ProductErrorCode.OUT_OF_STOCK);
         }
 
-        @DisplayName("잔액이 부족하면, INSUFFICIENT_POINT 예외가 발생하고 아무것도 바뀌지 않는다. (ORD-11)")
+        @DisplayName("잔액이 부족하면, INSUFFICIENT_POINT 예외가 발생하고 주문은 DRAFT 로 남는다. (ORD-11)")
         @Test
         void throwsInsufficientPoint() {
             // arrange
@@ -303,7 +304,7 @@ class OrderServiceTest {
 
             // assert
             assertThat(result.getErrorCode()).isEqualTo(PointErrorCode.INSUFFICIENT_POINT);
-            assertNothingChanged(order, first, 10, second, 10, 1_999L);
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.DRAFT);
         }
 
         @DisplayName("충전한 적 없는 사용자의 0 원 주문은 확정되고, Point 행이 생기지 않는다. (D-30)")

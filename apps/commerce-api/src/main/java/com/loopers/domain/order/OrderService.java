@@ -1,14 +1,9 @@
 package com.loopers.domain.order;
 
-import com.loopers.domain.point.Point;
-import com.loopers.domain.point.PointErrorCode;
 import com.loopers.domain.point.PointService;
 import com.loopers.domain.product.Product;
-import com.loopers.domain.product.ProductErrorCode;
-import com.loopers.domain.product.ProductErrorDetail;
 import com.loopers.domain.product.ProductService;
 import com.loopers.support.error.CoreException;
-import com.loopers.support.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -50,43 +45,28 @@ public class OrderService {
     }
 
     /**
-     * 모두 확인한 뒤 모두 변경한다 (설계 5.3). 확인은 규칙마다 품목 순서대로 하며 처음 실패한 품목을 알린다.
-     * 어떤 실패에서도 주문은 DRAFT 로, 재고와 잔액은 그대로 남는다 (5.4).
+     * 주문 → 상품 → 포인트 순으로 각 객체의 행동을 부르고, 규칙을 어기면 그 객체가 예외를 던짐 (설계 5.3).
+     * 처음 실패에서 멈추며, 앞서 바뀐 재고 · 잔액은 트랜잭션 롤백으로 DB 에 반영되지 않음 (5.4).
+     * 결제액은 주문서 합계이며 현재 가격과 비교하지 않음 (설계 2.3)
      */
     @Transactional
     public Order confirm(Long userId, Long orderId) {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
             .orElseThrow(() -> new CoreException(OrderErrorCode.ORDER_NOT_FOUND));
-        if (!order.isDraft()) {
-            throw new CoreException(OrderErrorCode.ORDER_ALREADY_CONFIRMED);
-        }
-        // 만료는 Order 자신의 상태라 상품 조회보다 먼저 봄 (설계 5.3)
         ZonedDateTime now = ZonedDateTime.now(clock);
-        if (order.isExpired(now)) {
-            throw new CoreException(OrderErrorCode.ORDER_EXPIRED);
-        }
+        order.validateConfirmable(now);
 
-        // 확인 단계: 상품 삭제(ORD-09) → 재고(ORD-10) → 잔액(ORD-11). 결제액은 주문서 합계이며 현재 가격과 비교하지 않음 (설계 2.3)
+        // 삭제된 상품(ORD-09)을 모두 확인한 뒤 차감(ORD-10)함. 실패한 상품은 품목 순서대로 처음 것
         Map<Long, Product> products = new LinkedHashMap<>();
         for (OrderItem item : order.getItems()) {
             products.put(item.getProductId(), productService.getActiveProduct(item.getProductId()));
         }
         for (OrderItem item : order.getItems()) {
-            if (!products.get(item.getProductId()).canDecrease(item.getQuantity())) {
-                throw failureOf(ProductErrorCode.OUT_OF_STOCK, item);
-            }
-        }
-        long paymentAmount = order.getTotalAmount();
-        Point point = pointService.getPoint(userId);
-        if (!point.canPay(paymentAmount)) {
-            throw new CoreException(PointErrorCode.INSUFFICIENT_POINT);
-        }
-
-        // 변경 단계: 조건 판단은 각 객체가 한다. 충전한 적 없는 사용자의 0원 결제는 Point 행을 만들지 않는다 (D-30).
-        for (OrderItem item : order.getItems()) {
             products.get(item.getProductId()).decrease(item.getQuantity());
         }
-        point.pay(paymentAmount);
+        // 충전한 적 없는 사용자의 0원 결제는 Point 행을 만들지 않음 (D-30)
+        long paymentAmount = order.getTotalAmount();
+        pointService.getPoint(userId).pay(paymentAmount);
         order.confirm(paymentAmount, now);
         return order;
     }
@@ -108,9 +88,5 @@ public class OrderService {
     @Transactional(readOnly = true)
     public Page<OrderSummary> getOrderSummaries(Long userId, OrderStatus status, Pageable pageable) {
         return orderRepository.findPage(userId, status, pageable).map(OrderSummary::from);
-    }
-
-    private static CoreException failureOf(ErrorCode errorCode, OrderItem item) {
-        return new CoreException(errorCode, null, ProductErrorDetail.of(item.getProductId()));
     }
 }
