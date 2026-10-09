@@ -6,6 +6,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 
 /**
  * 사용자의 포인트 잔액. 1포인트는 1원이다. 사용자 한 명에 하나이며 사용자는 식별자로만 보관한다 (설계 2.3).
@@ -19,6 +20,10 @@ public class Point extends BaseEntity {
     private Long userId;
 
     private long balance;
+
+    /** 같은 사용자의 충전 · 결제가 겹치면 나중 commit 이 충돌함. 충돌한 유스케이스는 ~Retrier 가 새 트랜잭션으로 다시 실행 (3주차 설계 4.1) */
+    @Version
+    private Long version;
 
     protected Point() {}
 

@@ -11,6 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.time.Duration;
 import java.time.ZonedDateTime;
@@ -55,6 +56,10 @@ public class Order extends BaseEntity {
     /** updatedAt 은 이후 변경으로 덮이므로 결제 시각을 따로 둔다 (설계 5.5). */
     @Column(name = "paid_at")
     private ZonedDateTime paidAt;
+
+    /** 같은 주문의 확정이 겹치면 나중 commit 이 충돌하고, 재시도에서 CONFIRMED 를 읽어 기존 상태 오류로 끝남 (3주차 설계 4.1) */
+    @Version
+    private Long version;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "order_id", nullable = false)

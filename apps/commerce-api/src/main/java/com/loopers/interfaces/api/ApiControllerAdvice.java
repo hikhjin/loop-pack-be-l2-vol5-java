@@ -7,6 +7,7 @@ import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorCode;
 import com.loopers.support.error.ErrorType;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -125,6 +126,16 @@ public class ApiControllerAdvice {
             log.warn("Lock acquisition failed : {}", e.getMessage(), e);
         }
         return failureResponse(ErrorType.LOCK_ACQUISITION_FAILED, null);
+    }
+
+    /**
+     * 낙관적 잠금 충돌이 ~Retrier 의 재시도 한도를 넘어 나온 경우. 버전을 가진 행을 바꾸는 경로는 모두 ~Retrier 를 거치므로
+     * 여기에 오면 곧 한도 초과이며, 재고 · 잔액 부족과 구분해 알림 (3주차 설계 4.4)
+     */
+    @ExceptionHandler
+    public ResponseEntity<ApiResponse<?>> handle(OptimisticLockingFailureException e) {
+        log.warn("Concurrent update retries exhausted : {}", e.getMessage(), e);
+        return failureResponse(ErrorType.CONCURRENT_UPDATE_CONFLICT, null);
     }
 
     @ExceptionHandler
