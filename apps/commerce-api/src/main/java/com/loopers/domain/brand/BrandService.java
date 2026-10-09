@@ -37,13 +37,9 @@ public class BrandService {
         return brand;
     }
 
-    /** 삭제되지 않은 상품이 남은 브랜드는 삭제하지 않는다 (BRD-02 삭제 입구). */
+    /** 브랜드만 삭제한다. 그 브랜드의 상품을 함께 삭제하는 일은 BrandFacade 가 조율한다 (BRD-02 삭제 입구, 3주차 설계 2.2). */
     @Transactional
     public void delete(Long brandId) {
-        Brand brand = getActiveBrand(brandId);
-        if (brandRepository.hasActiveProduct(brandId)) {
-            throw new CoreException(BrandErrorCode.BRAND_HAS_PRODUCTS);
-        }
-        brand.delete();
+        getActiveBrand(brandId).delete();
     }
 }

@@ -5,18 +5,15 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /** DB 없이 브랜드 서비스의 협력을 확인하기 위한 저장 구현. */
 public class FakeBrandRepository implements BrandRepository {
 
     private final Map<Long, Brand> brands = new LinkedHashMap<>();
-    private final Set<Long> brandIdsWithActiveProduct = new HashSet<>();
     private long sequence = 0L;
 
     @Override
@@ -37,14 +34,5 @@ public class FakeBrandRepository implements BrandRepository {
     public Page<Brand> findActive(Pageable pageable) {
         List<Brand> active = brands.values().stream().filter(brand -> !brand.isDeleted()).toList();
         return new PageImpl<>(active, pageable, active.size());
-    }
-
-    @Override
-    public boolean hasActiveProduct(Long brandId) {
-        return brandIdsWithActiveProduct.contains(brandId);
-    }
-
-    public void addActiveProductTo(Long brandId) {
-        brandIdsWithActiveProduct.add(brandId);
     }
 }

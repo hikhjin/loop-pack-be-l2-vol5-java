@@ -11,6 +11,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,7 +28,7 @@ class AdminProductFacadeTest {
     void setUp() {
         brandRepository = new FakeBrandRepository();
         productRepository = new FakeProductRepository();
-        adminProductFacade = new AdminProductFacade(new ProductService(productRepository), new BrandService(brandRepository));
+        adminProductFacade = new AdminProductFacade(new ProductService(productRepository, Clock.systemDefaultZone()), new BrandService(brandRepository));
     }
 
     @DisplayName("살아 있는 브랜드면, 재고 0 인 상품이 그 브랜드로 저장된다.")

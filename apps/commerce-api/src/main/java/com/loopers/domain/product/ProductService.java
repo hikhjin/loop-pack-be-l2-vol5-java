@@ -8,6 +8,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Set;
 
@@ -16,6 +18,8 @@ import java.util.Set;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    /** 일괄 삭제 시각의 기준. 엔티티를 거치지 않는 삭제라 시각을 여기서 정함 (3주차 설계 2.3) */
+    private final Clock clock;
 
     /**
      * 없거나 삭제된 상품은 PRODUCT_NOT_FOUND. 다른 도메인도 이 조회를 쓴다 (설계 D-31).
@@ -84,5 +88,11 @@ public class ProductService {
     @Transactional
     public void delete(Long productId) {
         getActiveProduct(productId).delete();
+    }
+
+    /** 브랜드의 삭제되지 않은 상품(재고 0 포함)을 모두 삭제하고 삭제한 수를 돌려줌. 대상이 없으면 0 (BRD-02, 3주차 설계 2.3) */
+    @Transactional
+    public int deleteAllOfBrand(Long brandId) {
+        return productRepository.deleteAllOfBrand(brandId, ZonedDateTime.now(clock));
     }
 }

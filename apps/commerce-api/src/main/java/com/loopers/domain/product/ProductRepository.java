@@ -3,6 +3,7 @@ package com.loopers.domain.product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
@@ -27,4 +28,10 @@ public interface ProductRepository {
      * brandId 가 null 이면 브랜드로 거르지 않고, 없는 브랜드면 빈 결과다.
      */
     Page<ProductView> findActiveViews(Long brandId, ProductSort sort, Pageable pageable);
+
+    /**
+     * 브랜드의 삭제되지 않은 상품(재고 0 포함)을 한 문장으로 삭제하고 삭제한 행 수를 돌려준다.
+     * 엔티티를 거치지 않으므로 삭제 시각과 수정 시각을 직접 받는다 (3주차 설계 2.3).
+     */
+    int deleteAllOfBrand(Long brandId, ZonedDateTime deletedAt);
 }

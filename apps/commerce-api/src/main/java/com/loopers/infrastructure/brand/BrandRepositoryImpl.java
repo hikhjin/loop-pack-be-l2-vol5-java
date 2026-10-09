@@ -28,9 +28,4 @@ public class BrandRepositoryImpl implements BrandRepository {
     public Page<Brand> findActive(Pageable pageable) {
         return brandJpaRepository.findAllByDeletedAtIsNullOrderByCreatedAtDescIdDesc(pageable);
     }
-
-    @Override
-    public boolean hasActiveProduct(Long brandId) {
-        return brandJpaRepository.existsActiveProductByBrandId(brandId);
-    }
 }

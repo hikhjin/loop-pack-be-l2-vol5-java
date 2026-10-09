@@ -6,6 +6,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -65,6 +66,11 @@ public class FakeProductRepository implements ProductRepository {
 
     @Override
     public Page<ProductView> findActiveViews(Long brandId, ProductSort sort, Pageable pageable) {
+        throw new UnsupportedOperationException("ProductRepositoryIntegrationTest 에서 확인한다");
+    }
+
+    @Override
+    public int deleteAllOfBrand(Long brandId, ZonedDateTime deletedAt) {
         throw new UnsupportedOperationException("ProductRepositoryIntegrationTest 에서 확인한다");
     }
 

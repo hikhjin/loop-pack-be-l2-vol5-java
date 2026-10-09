@@ -15,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -135,5 +137,53 @@ class ProductRepositoryIntegrationTest {
             () -> assertThat(page.getContent()).extracting(ProductWithBrand::id).containsExactly(second.getId(), first.getId()),
             () -> assertThat(page.getTotalElements()).isEqualTo(2)
         );
+    }
+
+    @DisplayName("브랜드의 상품을 일괄 삭제하면, 그 브랜드의 삭제되지 않은 상품(재고 0 포함)만 받은 시각으로 삭제하고 그 수를 돌려준다. (BRD-02, 3주차 설계 2.3)")
+    @Test
+    void deletesAllActiveProductsOfBrand() {
+        // arrange
+        Brand brand = saveBrand("브랜드");
+        Brand other = saveBrand("다른 브랜드");
+        Product inStock = saveProduct(brand, "재고 있음", 5, false);
+        Product soldOut = saveProduct(brand, "재고 0", 0, false);
+        Product alreadyDeleted = saveProduct(brand, "이미 삭제", 5, true);
+        Product otherBrands = saveProduct(other, "다른 브랜드 상품", 5, false);
+        ZonedDateTime alreadyDeletedAt = alreadyDeleted.getDeletedAt();
+        ZonedDateTime deletedAt = ZonedDateTime.of(2026, 10, 9, 12, 0, 0, 0, ZoneOffset.UTC);
+
+        // act
+        Integer result = transactionTemplate.execute(status -> productRepository.deleteAllOfBrand(brand.getId(), deletedAt));
+
+        // assert
+        List<Product> reloaded = transactionTemplate.execute(status -> List.of(
+            entityManager.find(Product.class, inStock.getId()),
+            entityManager.find(Product.class, soldOut.getId()),
+            entityManager.find(Product.class, alreadyDeleted.getId()),
+            entityManager.find(Product.class, otherBrands.getId())
+        ));
+        assertAll(
+            () -> assertThat(result).isEqualTo(2),
+            () -> assertThat(reloaded.get(0).getDeletedAt().toInstant()).isEqualTo(deletedAt.toInstant()),
+            () -> assertThat(reloaded.get(0).getUpdatedAt().toInstant()).isEqualTo(deletedAt.toInstant()),
+            () -> assertThat(reloaded.get(1).getDeletedAt().toInstant()).isEqualTo(deletedAt.toInstant()),
+            () -> assertThat(reloaded.get(2).getDeletedAt().toInstant()).isEqualTo(alreadyDeletedAt.toInstant()),
+            () -> assertThat(reloaded.get(3).isDeleted()).isFalse()
+        );
+    }
+
+    @DisplayName("삭제되지 않은 상품이 없는 브랜드면, 아무것도 바꾸지 않고 0 을 돌려준다.")
+    @Test
+    void deletesNothing_whenBrandHasNoActiveProduct() {
+        // arrange
+        Brand brand = saveBrand("브랜드");
+
+        // act
+        Integer result = transactionTemplate.execute(
+            status -> productRepository.deleteAllOfBrand(brand.getId(), ZonedDateTime.now(ZoneOffset.UTC))
+        );
+
+        // assert
+        assertThat(result).isZero();
     }
 }

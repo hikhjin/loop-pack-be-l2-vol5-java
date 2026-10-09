@@ -13,6 +13,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -31,7 +33,7 @@ class LikeFacadeTest {
     void setUp() {
         likeRepository = new FakeLikeRepository();
         productRepository = new FakeProductRepository();
-        likeFacade = new LikeFacade(new LikeService(likeRepository), new ProductService(productRepository));
+        likeFacade = new LikeFacade(new LikeService(likeRepository), new ProductService(productRepository, Clock.systemDefaultZone()));
         brand = new FakeBrandRepository().save(new Brand("브랜드", null));
     }
 

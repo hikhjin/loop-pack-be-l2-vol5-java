@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Set;
 
@@ -26,7 +27,7 @@ class ProductServiceTest {
     void setUp() {
         brandRepository = new FakeBrandRepository();
         productRepository = new FakeProductRepository();
-        productService = new ProductService(productRepository);
+        productService = new ProductService(productRepository, Clock.systemDefaultZone());
     }
 
     @DisplayName("살아 있는 상품 식별자를 물으면, 없거나 삭제된 상품은 빠지고 예외가 발생하지 않는다. (설계 6.4)")

@@ -88,8 +88,8 @@ class OrderFacadeTest {
         pointRepository = new FakePointRepository();
         orderRepository = new FakeOrderRepository();
         pointService = new PointService(pointRepository);
-        ProductService productService = new ProductService(productRepository);
         clock = new MutableClock(CREATED_AT);
+        ProductService productService = new ProductService(productRepository, clock);
         orderFacade = new OrderFacade(new OrderService(orderRepository, clock), productService, pointService);
         brand = brandRepository.save(new Brand("브랜드", null));
     }
