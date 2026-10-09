@@ -8,6 +8,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,16 @@ public class FakeProductRepository implements ProductRepository {
     @Override
     public Optional<Product> findActiveForUpdate(Long productId) {
         return findActive(productId);
+    }
+
+    @Override
+    public List<Product> findAllActiveForUpdate(Collection<Long> productIds) {
+        return productIds.stream()
+            .distinct()
+            .map(this::findActive)
+            .flatMap(Optional::stream)
+            .sorted(Comparator.comparing(Product::getId))
+            .toList();
     }
 
     @Override

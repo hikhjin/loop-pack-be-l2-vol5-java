@@ -55,6 +55,11 @@ public class ProductRepositoryImpl implements ProductRepository {
     }
 
     @Override
+    public List<Product> findAllActiveForUpdate(Collection<Long> productIds) {
+        return productJpaRepository.findAllActiveForUpdate(productIds);
+    }
+
+    @Override
     public Set<Long> findActiveIds(Collection<Long> productIds) {
         return new HashSet<>(productJpaRepository.findActiveIds(productIds));
     }

@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -15,6 +16,12 @@ public interface ProductRepository {
 
     /** 살아 있는 상품을 배타 잠금으로 읽는다. product 행을 쓰는 경로가 쓴다 (3주차 설계 4.2) */
     Optional<Product> findActiveForUpdate(Long productId);
+
+    /**
+     * 주어진 식별자 중 살아 있는 상품을 식별자 오름차순으로 한 번에 배타 잠금한다. 없거나 삭제된 상품은 빠진다.
+     * 여러 상품을 잠그는 경로가 같은 순서로 잠가 교착을 피한다 (3주차 설계 4.3)
+     */
+    List<Product> findAllActiveForUpdate(Collection<Long> productIds);
 
     /** 주어진 식별자 중 삭제되지 않은 상품의 식별자. 없거나 삭제된 상품은 빠짐 */
     Set<Long> findActiveIds(Collection<Long> productIds);

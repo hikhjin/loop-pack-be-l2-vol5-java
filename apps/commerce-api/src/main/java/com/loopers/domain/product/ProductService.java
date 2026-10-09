@@ -11,7 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Component
@@ -35,6 +40,26 @@ public class ProductService {
      * 주어진 식별자 중 살아 있는 상품의 식별자. 대상 없음 예외를 던지지 않음.
      * 주문 상세의 판매 여부처럼 삭제 여부만 알면 되는 조회가 쓰며, 삭제 조건은 다른 살아 있는 상품 조회와 같음 (설계 6.4, D-42)
      */
+    /**
+     * 품목 순서로 받은 상품들을 식별자 오름차순으로 한 번에 잠그고, 받은 순서대로 돌려줌.
+     * 잠그는 순서(식별자)와 확인 순서(품목)를 나눠, 없거나 삭제된 상품은 받은 순서에서 처음 것을 PRODUCT_NOT_FOUND 로 알림
+     * (ORD-09, 설계 D-16, 3주차 설계 4.3)
+     */
+    @Transactional
+    public Map<Long, Product> getActiveProductsForUpdate(List<Long> productIds) {
+        Map<Long, Product> locked = productRepository.findAllActiveForUpdate(productIds).stream()
+            .collect(Collectors.toMap(Product::getId, Function.identity()));
+        Map<Long, Product> products = new LinkedHashMap<>();
+        for (Long productId : productIds) {
+            Product product = locked.get(productId);
+            if (product == null) {
+                throw new CoreException(ProductErrorCode.PRODUCT_NOT_FOUND, null, ProductErrorDetail.of(productId));
+            }
+            products.put(productId, product);
+        }
+        return products;
+    }
+
     /** product 행을 쓰는 경로가 같은 행을 잠그고 최신 상태로 판단하게 함 (3주차 설계 4.2) */
     private Product getActiveProductForUpdate(Long productId) {
         return productRepository.findActiveForUpdate(productId)

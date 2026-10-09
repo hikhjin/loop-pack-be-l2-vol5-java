@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -103,5 +104,45 @@ class ProductServiceTest {
             () -> assertThat(assertThrows(CoreException.class, () -> productService.delete(productId)).getErrorCode())
                 .isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND)
         );
+    }
+
+    @DisplayName("상품들을 잠가 조회할 때, ")
+    @Nested
+    class GetActiveProductsForUpdate {
+        @DisplayName("받은 순서대로 돌려준다.")
+        @Test
+        void returnsProductsInRequestedOrder() {
+            // arrange
+            Brand brand = brandRepository.save(new Brand("브랜드", null));
+            Product first = productService.create(brand, "먼저 만든 상품", 1_000L);
+            Product second = productService.create(brand, "나중에 만든 상품", 1_000L);
+
+            // act
+            Map<Long, Product> result = productService.getActiveProductsForUpdate(List.of(second.getId(), first.getId()));
+
+            // assert
+            assertThat(result.keySet()).containsExactly(second.getId(), first.getId());
+        }
+
+        @DisplayName("없거나 삭제된 상품이 여럿이면, 식별자 순서가 아니라 받은 순서에서 처음 것을 알리는 PRODUCT_NOT_FOUND 예외가 발생한다. (설계 D-16)")
+        @Test
+        void throwsProductNotFoundForFirstMissingInRequestedOrder() {
+            // arrange
+            Brand brand = brandRepository.save(new Brand("브랜드", null));
+            Product deletedFirst = productService.create(brand, "먼저 만든 상품", 1_000L);
+            Product deletedSecond = productService.create(brand, "나중에 만든 상품", 1_000L);
+            deletedFirst.delete();
+            deletedSecond.delete();
+
+            // act
+            CoreException result = assertThrows(CoreException.class,
+                () -> productService.getActiveProductsForUpdate(List.of(deletedSecond.getId(), deletedFirst.getId())));
+
+            // assert
+            assertAll(
+                () -> assertThat(result.getErrorCode()).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND),
+                () -> assertThat(result.getDetail()).isEqualTo(ProductErrorDetail.of(deletedSecond.getId()))
+            );
+        }
     }
 }

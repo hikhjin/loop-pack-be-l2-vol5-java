@@ -68,11 +68,10 @@ public class OrderFacade {
     public OrderInfo confirmOrder(Long userId, Long orderId) {
         Order order = orderService.getConfirmableOrder(userId, orderId);
 
-        // 삭제된 상품(ORD-09)을 모두 확인한 뒤 차감(ORD-10)함. 실패한 상품은 품목 순서대로 처음 것
-        Map<Long, Product> products = new LinkedHashMap<>();
-        for (OrderItem item : order.getItems()) {
-            products.put(item.getProductId(), productService.getActiveProduct(item.getProductId()));
-        }
+        // 품목의 상품들을 식별자 오름차순으로 한 번에 잠근 뒤(3주차 설계 4.3), 삭제된 상품(ORD-09)을 모두 확인하고 차감(ORD-10)함.
+        // 실패한 상품은 품목 순서대로 처음 것
+        List<Long> productIds = order.getItems().stream().map(OrderItem::getProductId).toList();
+        Map<Long, Product> products = productService.getActiveProductsForUpdate(productIds);
         for (OrderItem item : order.getItems()) {
             products.get(item.getProductId()).decrease(item.getQuantity());
         }
