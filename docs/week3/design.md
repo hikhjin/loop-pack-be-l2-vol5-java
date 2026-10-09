@@ -169,7 +169,7 @@ WHERE brand_id = :brandId AND deleted_at IS NULL
   - FK는 막지 못한다. INSERT의 FK 확인이 brand 행에 공유 잠금을 걸어 잠깐 줄을 세우지만, 논리 삭제라 brand 행은 여전히 존재해 확인을 통과한다.
 - **상품 등록은 `FOR SHARE` 로 참여한다.** "브랜드를 바꾸지는 않지만 내가 끝날 때까지 바뀌면 안 된다"를 정확히 표현한다. 같은 브랜드의 상품 등록끼리는 서로 막지 않고, 브랜드 수정 · 삭제만 기다리게 한다.
   - 상품 등록은 brand 행을 쓰지 않아 공유 잠금을 배타 잠금으로 올릴 일이 없다. 그래서 공유 잠금의 전형적인 교착이 생기지 않는다.
-  - JPA `PESSIMISTIC_READ` 가 MySQL 8에서 `FOR SHARE` 로 나가는지 구현할 때 SQL로 확인한다.
+  - JPA `PESSIMISTIC_READ` 는 MySQL 8에서 `... for share` 로 나가는 것을 테스트 SQL 로그로 확인했다.
 
 | 버린 대안 (brand 행) | 포기한 이유 |
 |---|---|
@@ -318,7 +318,7 @@ PointV1Controller.charge
   - 클라이언트가 할 일은 두 경우 모두 "잠시 후 다시 시도"로 같아서 코드를 나누지 않는다.
   - **503이 아니라 500인 이유:** 로드밸런서나 서킷브레이커가 503을 인스턴스 이상으로 보고 트래픽을 빼는 경우가 있다.
   - **교착은 재시도하지 않고 오류로 내보낸다.** 잠금 순서(4.3)를 지키면 생기지 않아야 하므로, 생겼다면 설계 버그 신호다. `error` 로그로 남긴다. 잠금 대기 시간 초과는 `warn`.
-  - 예외 타입은 Spring의 `PessimisticLockingFailureException` 계열(`CannotAcquireLockException` 등)로 올 것으로 예상한다. 정확한 타입은 테스트로 확인하고 `ApiControllerAdvice` 핸들러를 맞춘다.
+  - 잠금 대기 시간 초과는 Hibernate `PessimisticLockException` 을 감싼 Spring `PessimisticLockingFailureException` 으로 오는 것을 테스트로 확인했다. 핸들러는 부모 타입 `PessimisticLockingFailureException` 을 받아 `CannotAcquireLockException` 등 하위 타입도 함께 처리하고, 원인 SQL 오류 코드(교착 1213)로 로그 수준을 나눈다.
   - 기술 오류를 품절 · 잔액 부족으로 숨기지 않는다.
 
 ### 4.6 REPEATABLE READ에서의 동작
@@ -515,8 +515,8 @@ AOP라 fake 저장 구현을 쓰는 Facade 단위 테스트로는 확인할 수 
 
 ### 9.4 구현할 때 확인할 것
 
-- `PESSIMISTIC_READ` 가 MySQL 8에서 `FOR SHARE` 로 나가는지
+- ~~`PESSIMISTIC_READ` 가 MySQL 8에서 `FOR SHARE` 로 나가는지~~ → 확인함 (`for share`)
 - Hibernate 잠금 대기 힌트가 MySQL에서 무시되는지 (그래서 `connection-init-sql` 이 필요한지)
-- 잠금 대기 시간 초과 · 교착의 실제 예외 타입
+- 잠금 대기 시간 초과 · 교착의 실제 예외 타입 → 시간 초과는 `PessimisticLockingFailureException`(원인 Hibernate `PessimisticLockException`)으로 확인함. 교착은 재현하지 않음
 - `brand_id` 인덱스 존재와 bulk UPDATE의 `EXPLAIN`
 - 재시도 대상이 아닌 `CoreException` 이 `@Recover` 없이 원래 예외 그대로 나가는지

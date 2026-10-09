@@ -13,6 +13,9 @@ public interface ProductRepository {
 
     Optional<Product> findActive(Long productId);
 
+    /** 살아 있는 상품을 배타 잠금으로 읽는다. product 행을 쓰는 경로가 쓴다 (3주차 설계 4.2) */
+    Optional<Product> findActiveForUpdate(Long productId);
+
     /** 주어진 식별자 중 삭제되지 않은 상품의 식별자. 없거나 삭제된 상품은 빠짐 */
     Set<Long> findActiveIds(Collection<Long> productIds);
 

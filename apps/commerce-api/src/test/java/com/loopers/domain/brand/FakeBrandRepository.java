@@ -30,6 +30,17 @@ public class FakeBrandRepository implements BrandRepository {
         return Optional.ofNullable(brands.get(brandId)).filter(brand -> !brand.isDeleted());
     }
 
+    // fake 에는 잠금이 없다. 잠금 동작은 실제 DB 의 동시성 테스트에서 확인한다
+    @Override
+    public Optional<Brand> findActiveForUpdate(Long brandId) {
+        return findActive(brandId);
+    }
+
+    @Override
+    public Optional<Brand> findActiveForShare(Long brandId) {
+        return findActive(brandId);
+    }
+
     @Override
     public Page<Brand> findActive(Pageable pageable) {
         List<Brand> active = brands.values().stream().filter(brand -> !brand.isDeleted()).toList();

@@ -36,6 +36,12 @@ public class FakeProductRepository implements ProductRepository {
         return Optional.ofNullable(products.get(productId)).filter(product -> !product.isDeleted());
     }
 
+    // fake 에는 잠금이 없다. 잠금 동작은 실제 DB 의 동시성 테스트에서 확인한다
+    @Override
+    public Optional<Product> findActiveForUpdate(Long productId) {
+        return findActive(productId);
+    }
+
     @Override
     public Set<Long> findActiveIds(Collection<Long> productIds) {
         return productIds.stream()

@@ -7,6 +7,7 @@ import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorCode;
 import com.loopers.support.error.ErrorType;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -16,6 +17,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.server.ServerWebInputException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,6 +26,8 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 @Slf4j
 public class ApiControllerAdvice {
+    private static final int MYSQL_DEADLOCK = 1213;
+
     @ExceptionHandler
     public ResponseEntity<ApiResponse<?>> handle(CoreException e) {
         log.warn("CoreException : {}", e.getCustomMessage() != null ? e.getCustomMessage() : e.getMessage(), e);
@@ -109,10 +113,33 @@ public class ApiControllerAdvice {
         return failureResponse(ErrorType.NOT_FOUND, null);
     }
 
+    /**
+     * 잠금 대기 시간 초과와 교착을 같은 코드로 응답하고 원인은 로그로 구분함. 품절 · 잔액 부족으로 바꾸지 않음.
+     * 교착은 잠금 순서(brand → product, ID 오름차순)가 어딘가에서 지켜지지 않았다는 신호라 error 로 남김 (3주차 설계 4.5)
+     */
+    @ExceptionHandler
+    public ResponseEntity<ApiResponse<?>> handle(PessimisticLockingFailureException e) {
+        if (sqlErrorCodeOf(e) == MYSQL_DEADLOCK) {
+            log.error("Deadlock : {}", e.getMessage(), e);
+        } else {
+            log.warn("Lock acquisition failed : {}", e.getMessage(), e);
+        }
+        return failureResponse(ErrorType.LOCK_ACQUISITION_FAILED, null);
+    }
+
     @ExceptionHandler
     public ResponseEntity<ApiResponse<?>> handle(Throwable e) {
         log.error("Exception : {}", e.getMessage(), e);
         return failureResponse(ErrorType.INTERNAL_ERROR, null);
+    }
+
+    private static int sqlErrorCodeOf(Throwable e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sqlException) {
+                return sqlException.getErrorCode();
+            }
+        }
+        return 0;
     }
 
     private String extractMissingParameter(String message) {

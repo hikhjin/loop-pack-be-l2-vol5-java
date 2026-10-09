@@ -22,6 +22,7 @@ public final class ErrorStatusMapper {
         Map.entry(ErrorType.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED),
         Map.entry(ErrorType.NOT_FOUND, HttpStatus.NOT_FOUND),
         Map.entry(ErrorType.CONFLICT, HttpStatus.CONFLICT),
+        Map.entry(ErrorType.LOCK_ACQUISITION_FAILED, HttpStatus.INTERNAL_SERVER_ERROR),
         Map.entry(BrandErrorCode.BRAND_NOT_FOUND, HttpStatus.NOT_FOUND),
         Map.entry(BrandErrorCode.INVALID_BRAND_NAME, HttpStatus.BAD_REQUEST),
         Map.entry(BrandErrorCode.INVALID_BRAND_DESCRIPTION, HttpStatus.BAD_REQUEST),

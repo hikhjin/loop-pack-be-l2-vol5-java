@@ -35,6 +35,12 @@ public class ProductService {
      * 주어진 식별자 중 살아 있는 상품의 식별자. 대상 없음 예외를 던지지 않음.
      * 주문 상세의 판매 여부처럼 삭제 여부만 알면 되는 조회가 쓰며, 삭제 조건은 다른 살아 있는 상품 조회와 같음 (설계 6.4, D-42)
      */
+    /** product 행을 쓰는 경로가 같은 행을 잠그고 최신 상태로 판단하게 함 (3주차 설계 4.2) */
+    private Product getActiveProductForUpdate(Long productId) {
+        return productRepository.findActiveForUpdate(productId)
+            .orElseThrow(() -> new CoreException(ProductErrorCode.PRODUCT_NOT_FOUND, null, ProductErrorDetail.of(productId)));
+    }
+
     @Transactional(readOnly = true)
     public Set<Long> getActiveProductIds(Collection<Long> productIds) {
         if (productIds.isEmpty()) {
@@ -71,23 +77,24 @@ public class ProductService {
         return productRepository.save(new Product(brand, name, price));
     }
 
+    /** 변경 감지는 모든 컬럼을 다시 쓰므로, 잠금 읽기로 최신 재고를 봐서 그 사이의 차감을 덮어쓰지 않음 (3주차 설계 4.2) */
     @Transactional
     public Product update(Long productId, String name, long price) {
-        Product product = getActiveProduct(productId);
+        Product product = getActiveProductForUpdate(productId);
         product.update(name, price);
         return product;
     }
 
     @Transactional
     public Product changeStock(Long productId, int stock) {
-        Product product = getActiveProduct(productId);
+        Product product = getActiveProductForUpdate(productId);
         product.changeStock(stock);
         return product;
     }
 
     @Transactional
     public void delete(Long productId) {
-        getActiveProduct(productId).delete();
+        getActiveProductForUpdate(productId).delete();
     }
 
     /** 브랜드의 삭제되지 않은 상품(재고 0 포함)을 모두 삭제하고 삭제한 수를 돌려줌. 대상이 없으면 0 (BRD-02, 3주차 설계 2.3) */

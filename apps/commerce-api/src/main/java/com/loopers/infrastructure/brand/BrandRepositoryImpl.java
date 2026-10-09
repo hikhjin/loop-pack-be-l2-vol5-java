@@ -28,4 +28,14 @@ public class BrandRepositoryImpl implements BrandRepository {
     public Page<Brand> findActive(Pageable pageable) {
         return brandJpaRepository.findAllByDeletedAtIsNullOrderByCreatedAtDescIdDesc(pageable);
     }
+
+    @Override
+    public Optional<Brand> findActiveForUpdate(Long brandId) {
+        return brandJpaRepository.findActiveForUpdate(brandId);
+    }
+
+    @Override
+    public Optional<Brand> findActiveForShare(Long brandId) {
+        return brandJpaRepository.findActiveForShare(brandId);
+    }
 }
