@@ -519,5 +519,5 @@ AOP라 fake 저장 구현을 쓰는 Facade 단위 테스트로는 확인할 수 
 - ~~`PESSIMISTIC_READ` 가 MySQL 8에서 `FOR SHARE` 로 나가는지~~ → 확인함 (`for share`)
 - Hibernate 잠금 대기 힌트가 MySQL에서 무시되는지 (그래서 `connection-init-sql` 이 필요한지)
 - 잠금 대기 시간 초과 · 교착의 실제 예외 타입 → 시간 초과는 `PessimisticLockingFailureException`(원인 Hibernate `PessimisticLockException`)으로 확인함. 교착은 재현하지 않음
-- `brand_id` 인덱스 존재와 bulk UPDATE의 `EXPLAIN`
+- `brand_id` 인덱스 존재와 bulk UPDATE의 `EXPLAIN` → 테스트 스키마(`ddl-auto: create`)에서 FK 인덱스가 생기고, bulk UPDATE는 그 인덱스를 `range` 로, 확정의 일괄 잠금은 `PRIMARY` 를 `range` 로 탐을 확인함. 운영 스키마의 인덱스는 확인하지 않음
 - 재시도 대상이 아닌 `CoreException` 이 `@Recover` 없이 원래 예외 그대로 나가는지

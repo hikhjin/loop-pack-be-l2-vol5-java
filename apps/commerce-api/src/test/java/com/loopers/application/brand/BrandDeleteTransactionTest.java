@@ -1,9 +1,14 @@
 package com.loopers.application.brand;
 
+import com.loopers.application.order.OrderFacade;
 import com.loopers.domain.brand.Brand;
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderLine;
+import com.loopers.domain.point.Point;
 import com.loopers.domain.product.Product;
+import com.loopers.domain.product.ProductErrorCode;
+import com.loopers.domain.product.ProductErrorDetail;
+import com.loopers.support.error.CoreException;
 import com.loopers.domain.product.ProductService;
 import com.loopers.utils.DatabaseCleanUp;
 import jakarta.persistence.EntityManager;
@@ -37,6 +42,9 @@ class BrandDeleteTransactionTest {
 
     @Autowired
     private BrandFacade brandFacade;
+
+    @Autowired
+    private OrderFacade orderFacade;
 
     @MockitoSpyBean
     private ProductService productService;
@@ -84,6 +92,28 @@ class BrandDeleteTransactionTest {
             () -> assertThat(isDeleted("product", soldOut.getId())).isTrue(),
             () -> assertThat(isDeleted("product", otherBrands.getId())).isFalse(),
             () -> assertThat(pastOrderSnapshot()).isEqualTo(List.of("CONFIRMED", 5_000L, "재고 있음", 1_000L, 5))
+        );
+    }
+
+    @DisplayName("브랜드 삭제 전에 만든 DRAFT 주문을 확정하면, 상품 삭제 여부를 다시 확인해 PRODUCT_NOT_FOUND 로 거절하고 DRAFT 로 남는다. (ORD-09)")
+    @Test
+    void rejectsConfirmingDraftCreatedBeforeBrandDeletion() {
+        // arrange
+        Order draft = persist(Order.draft(USER_ID, List.of(new OrderLine(soldOut.getId(), soldOut.getName(), soldOut.getPrice(), 1)),
+            ZonedDateTime.now()));
+        Point point = new Point(USER_ID);
+        point.charge(10_000L);
+        persist(point);
+        brandFacade.deleteBrand(brand.getId());
+
+        // act
+        CoreException result = assertThrows(CoreException.class, () -> orderFacade.confirmOrder(USER_ID, draft.getId()));
+
+        // assert
+        assertAll(
+            () -> assertThat(result.getErrorCode()).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND),
+            () -> assertThat(result.getDetail()).isEqualTo(ProductErrorDetail.of(soldOut.getId())),
+            () -> assertThat(orderStatusOf(draft.getId())).isEqualTo("DRAFT")
         );
     }
 
@@ -150,6 +180,12 @@ class BrandDeleteTransactionTest {
             .setParameter("id", id)
             .getSingleResult();
         return deletedAt != null;
+    }
+
+    private String orderStatusOf(Long orderId) {
+        return transactionTemplate.execute(status -> (String) entityManager.createNativeQuery("select status from orders where id = :id")
+            .setParameter("id", orderId)
+            .getSingleResult());
     }
 
     /** 과거 주문의 상태 · 결제액과 품목의 스냅샷(상품명 · 단가 · 수량) */
