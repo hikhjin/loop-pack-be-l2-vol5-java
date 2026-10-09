@@ -2,7 +2,7 @@ package com.loopers.application.brand;
 
 import com.loopers.application.product.AdminProductFacade;
 import com.loopers.domain.brand.Brand;
-import com.loopers.support.error.CoreException;
+import com.loopers.support.ConcurrentRunner;
 import com.loopers.utils.DatabaseCleanUp;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
@@ -15,12 +15,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
+import static com.loopers.support.ConcurrentRunner.SUCCESS;
+import static com.loopers.support.ConcurrentRunner.outcomeOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
@@ -32,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 class BrandConcurrencyTest {
 
     private static final int CONCURRENT_REQUESTS = 5;
-    private static final String SUCCESS = "SUCCESS";
     private static final String BRAND_NOT_FOUND = "BRAND_NOT_FOUND";
 
     @Autowired
@@ -68,7 +64,7 @@ class BrandConcurrencyTest {
         }
 
         // act
-        List<String> outcomes = runConcurrently(tasks);
+        List<String> outcomes = ConcurrentRunner.run(tasks);
 
         // assert
         assertAll(
@@ -93,7 +89,7 @@ class BrandConcurrencyTest {
         }
 
         // act
-        List<String> outcomes = runConcurrently(tasks);
+        List<String> outcomes = ConcurrentRunner.run(tasks);
 
         // assert
         assertAll(
@@ -109,50 +105,6 @@ class BrandConcurrencyTest {
             entityManager.persist(brand);
             return brand;
         });
-    }
-
-    /** 성공 · 업무 거절(오류 코드) · 기술 오류(예외 타입)를 구분해 돌려줌. 예외를 버리지 않음 */
-    private static Callable<String> outcomeOf(Runnable request) {
-        return () -> {
-            try {
-                request.run();
-                return SUCCESS;
-            } catch (CoreException e) {
-                return e.getErrorCode().getCode();
-            } catch (RuntimeException e) {
-                return "TECHNICAL:" + e.getClass().getSimpleName();
-            }
-        };
-    }
-
-    /** 모든 작업의 시작만 맞춰 실행하고, 끝날 때까지 기다린 뒤 결과를 순서대로 돌려줌 */
-    private static List<String> runConcurrently(List<Callable<String>> tasks) throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(tasks.size());
-        CountDownLatch ready = new CountDownLatch(tasks.size());
-        CountDownLatch start = new CountDownLatch(1);
-        try {
-            List<Future<String>> futures = new ArrayList<>();
-            for (Callable<String> task : tasks) {
-                futures.add(executor.submit(() -> {
-                    ready.countDown();
-                    if (!start.await(10, TimeUnit.SECONDS)) {
-                        throw new IllegalStateException("시작 신호를 받지 못함");
-                    }
-                    return task.call();
-                }));
-            }
-            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
-            start.countDown();
-            List<String> outcomes = new ArrayList<>();
-            for (Future<String> future : futures) {
-                outcomes.add(future.get(30, TimeUnit.SECONDS));
-            }
-            return outcomes;
-        } finally {
-            start.countDown();
-            executor.shutdownNow();
-            executor.awaitTermination(10, TimeUnit.SECONDS);
-        }
     }
 
     /** 모든 작업이 끝난 뒤 새 트랜잭션에서 DB 를 다시 읽음 */
