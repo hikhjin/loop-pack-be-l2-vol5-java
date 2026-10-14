@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -107,7 +108,7 @@ class ProductQueryExperiment {
             "# 상품 목록 조회 측정",
             "",
             "- MySQL " + jdbcTemplate.queryForObject("select version()", String.class) + " (Testcontainers), 테스트 커넥션 풀 10",
-            "- 요청: `GET /api/v1/products?brandId=" + MEASURED_BRAND_ID + "&sort={정렬}&page=" + PAGE + "&size=" + SIZE + "`",
+            "- 요청: `GET /api/v1/products?[brandId=" + MEASURED_BRAND_ID + "&]sort={정렬}&page=" + PAGE + "&size=" + SIZE + "`",
             "- MockMvc 로 한 스레드에서 차례로 요청. 네트워크 · 톰캣은 포함하지 않음",
             "- 준비 " + WARMUP_REQUESTS + "회 뒤 측정 " + MEASURED_REQUESTS + "회. SQL 출력(show-sql) 끔",
             "",
@@ -143,36 +144,43 @@ class ProductQueryExperiment {
         );
     }
 
-    @ParameterizedTest(name = "브랜드 {0} 목록 기준선")
-    @ValueSource(strings = {"latest", "price_asc", "likes_desc"})
-    void baseline(String sort) throws Exception {
+    /** brandId 가 비면 브랜드 필터 없는 전체 목록이다 */
+    @ParameterizedTest(name = "브랜드 {0} · {1} 목록")
+    @CsvSource({
+        "7, latest", "7, price_asc", "7, likes_desc",
+        ", latest", ", price_asc", ", likes_desc"
+    })
+    void measure(Long brandId, String sort) throws Exception {
         // 한 번 요청해 결과 · SQL 수 · 실제 SQL 을 얻는다
         SqlCapture.clear();
-        Page actual = request(sort);
+        Page actual = request(brandId, sort);
         List<String> statements = SqlCapture.statements();
 
-        assertThat(actual).isEqualTo(expectedPage(sort));
+        assertThat(actual).isEqualTo(expectedPage(brandId, sort));
 
         // 지연 분포
         for (int i = 0; i < WARMUP_REQUESTS; i++) {
-            request(sort);
+            request(brandId, sort);
         }
         long[] nanos = new long[MEASURED_REQUESTS];
         for (int i = 0; i < MEASURED_REQUESTS; i++) {
             long start = System.nanoTime();
-            request(sort);
+            request(brandId, sort);
             nanos[i] = System.nanoTime() - start;
         }
 
-        appendReport(sort, actual, statements, nanos);
+        appendReport(brandId, sort, actual, statements, nanos);
     }
 
-    private Page request(String sort) throws Exception {
-        MvcResult result = mvc.perform(get("/api/v1/products")
-                .param("brandId", String.valueOf(MEASURED_BRAND_ID))
-                .param("sort", sort)
-                .param("page", String.valueOf(PAGE))
-                .param("size", String.valueOf(SIZE)))
+    private Page request(Long brandId, String sort) throws Exception {
+        MockHttpServletRequestBuilder builder = get("/api/v1/products")
+            .param("sort", sort)
+            .param("page", String.valueOf(PAGE))
+            .param("size", String.valueOf(SIZE));
+        if (brandId != null) {
+            builder.param("brandId", String.valueOf(brandId));
+        }
+        MvcResult result = mvc.perform(builder)
             .andExpect(status().isOk())
             .andReturn();
         JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
@@ -185,8 +193,8 @@ class ProductQueryExperiment {
             data.path("totalCount").asLong(), data.path("totalPages").asInt());
     }
 
-    // seed 규칙(docs/week4/product-query-seed.md 2절)으로 브랜드의 살아 있는 상품을 만들고 API 계약의 정렬로 자른다
-    private static Page expectedPage(String sort) {
+    // seed 규칙(docs/week4/product-query-seed.md 2절)으로 살아 있는 상품을 만들고 API 계약의 필터 · 정렬로 자른다
+    private static Page expectedPage(Long brandId, String sort) {
         Comparator<SeedProduct> order = switch (sort) {
             case "latest" -> Comparator.comparingLong(SeedProduct::createdOffset).reversed();
             case "price_asc" -> Comparator.comparingLong(SeedProduct::price);
@@ -194,7 +202,7 @@ class ProductQueryExperiment {
             default -> throw new IllegalArgumentException(sort);
         };
         List<SeedProduct> candidates = IntStream.rangeClosed(1, 10_000)
-            .filter(i -> (i % 100) + 1 == MEASURED_BRAND_ID && i % 17 != 0)
+            .filter(i -> i % 17 != 0 && (brandId == null || (i % 100) + 1 == brandId))
             .mapToObj(ProductQueryExperiment::seedProduct)
             .sorted(order.thenComparing(Comparator.comparingLong(SeedProduct::id).reversed()))
             .toList();
@@ -219,9 +227,9 @@ class ProductQueryExperiment {
         return new SeedProduct(i, ((i * 37L) % 100_000) + 100, likeCount, i % 13 == 0, (i * 7919L) % 10_000);
     }
 
-    private void appendReport(String sort, Page actual, List<String> statements, long[] nanos) throws IOException {
+    private void appendReport(Long brandId, String sort, Page actual, List<String> statements, long[] nanos) throws IOException {
         List<String> lines = new ArrayList<>();
-        lines.add("## " + sort);
+        lines.add("## " + (brandId == null ? "전체" : "브랜드 " + brandId) + " · " + sort);
         lines.add("");
         lines.add("- 요청당 SQL: " + statements.size() + "개");
         lines.add("- 결과: 기대 결과와 일치. totalCount " + actual.totalCount() + ", totalPages " + actual.totalPages());
@@ -231,7 +239,7 @@ class ProductQueryExperiment {
         lines.add("");
         for (int i = 0; i < statements.size(); i++) {
             String sql = statements.get(i);
-            Object[] args = argsOf(sql);
+            Object[] args = argsOf(sql, brandId);
             lines.add("### SQL " + (i + 1) + " (인자 " + Arrays.toString(args) + ")");
             lines.add("");
             lines.add("```sql");
@@ -249,16 +257,21 @@ class ProductQueryExperiment {
         Files.writeString(REPORT, String.join("\n", lines) + "\n", StandardOpenOption.APPEND);
     }
 
-    // 목록 SQL 은 (브랜드, offset, limit), 건수 SQL 은 (브랜드) 를 받는다. Querydsl 은 첫 페이지에도 offset 을 넘긴다
-    private static Object[] argsOf(String sql) {
+    // 목록 SQL 은 ([브랜드], offset, limit), 건수 SQL 은 ([브랜드]) 를 받는다. Querydsl 은 첫 페이지에도 offset 을 넘긴다
+    private static Object[] argsOf(String sql, Long brandId) {
+        List<Object> args = new ArrayList<>();
+        if (brandId != null) {
+            args.add(brandId);
+        }
+        if (sql.contains(" limit ")) {
+            args.add((long) (PAGE - 1) * SIZE);
+            args.add(SIZE);
+        }
         long placeholders = sql.chars().filter(c -> c == '?').count();
-        if (placeholders == 3) {
-            return new Object[] {MEASURED_BRAND_ID, (long) (PAGE - 1) * SIZE, SIZE};
+        if (placeholders != args.size()) {
+            throw new IllegalStateException("예상하지 못한 인자 수 " + placeholders + ": " + sql);
         }
-        if (placeholders == 1) {
-            return new Object[] {MEASURED_BRAND_ID};
-        }
-        throw new IllegalStateException("예상하지 못한 인자 수 " + placeholders + ": " + sql);
+        return args.toArray();
     }
 
     private static String latencyTable(long[] nanos) {
