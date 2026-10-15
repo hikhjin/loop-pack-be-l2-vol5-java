@@ -13,6 +13,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,6 +37,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -111,6 +113,9 @@ class ProductQueryExperiment {
 
     private record Page(List<Item> items, int page, int size, long totalCount, int totalPages) {}
 
+    /** 상세 응답에서 비교하는 값 */
+    private record Detail(long id, long price, long likeCount, boolean soldOut, long brandId, String brandName) {}
+
     @BeforeAll
     void seed() throws SQLException, IOException {
         jdbcTemplate = new JdbcTemplate(dataSource);
@@ -180,10 +185,47 @@ class ProductQueryExperiment {
         measureScenario(brandId, sort);
     }
 
+    /** 브랜드 7 의 보통 상품 · 좋아요 0 상품 · 인기 상품(좋아요 250) */
+    @ParameterizedTest(name = "상품 {0} 상세")
+    @ValueSource(longs = {6, 7, 97})
+    @Order(3)
+    void measureDetail(long productId) throws Exception {
+        SqlCapture.clear();
+        Detail actual = requestDetail(productId);
+        List<String> statements = SqlCapture.statements();
+
+        int i = (int) productId;
+        SeedProduct expected = seedProduct(i);
+        assertThat(actual).isEqualTo(new Detail(i, expected.price(), expected.likeCount(), expected.soldOut(),
+            brandOf(i), "brand-" + brandOf(i)));
+
+        long[] nanos = measureLatency(() -> requestDetail(productId));
+
+        List<String> lines = new ArrayList<>();
+        lines.add("## 상세 · 상품 " + productId + " (좋아요 " + actual.likeCount() + ")");
+        lines.add("");
+        lines.add("- 요청당 SQL: " + statements.size() + "개");
+        lines.add("- 결과: 기대 결과와 일치");
+        lines.add("");
+        lines.add(latencyTable(nanos));
+        lines.add("");
+        appendPlans(lines, statements, sql -> new Object[] {productId});
+        Files.writeString(REPORT, String.join("\n", lines) + "\n", StandardOpenOption.APPEND);
+    }
+
+    private Detail requestDetail(long productId) throws Exception {
+        MvcResult result = mvc.perform(get("/api/v1/products/" + productId))
+            .andExpect(status().isOk())
+            .andReturn();
+        JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
+        return new Detail(data.path("id").asLong(), data.path("price").asLong(), data.path("likeCount").asLong(),
+            data.path("soldOut").asBoolean(), data.path("brand").path("id").asLong(), data.path("brand").path("name").asText());
+    }
+
     /** 기본 seed 장면을 모두 잰 뒤 큰 브랜드를 더한다. 첫 실행에서만 넣는다 */
     @ParameterizedTest(name = "큰 브랜드 {0} · {1} 목록")
     @CsvSource({"101, latest", "101, price_asc", "101, likes_desc"})
-    @Order(3)
+    @Order(4)
     void measureLargeBrand(Long brandId, String sort) throws Exception {
         if (seededProducts == BASE_PRODUCTS) {
             runScript(LARGE_BRAND_SEED);
@@ -209,18 +251,28 @@ class ProductQueryExperiment {
 
         assertThat(actual).isEqualTo(expectedPage(brandId, sort, seededProducts));
 
-        // 지연 분포
+        long[] nanos = measureLatency(() -> request(brandId, sort));
+
+        appendReport(brandId, sort, actual, statements, nanos);
+    }
+
+    @FunctionalInterface
+    private interface Request {
+        Object send() throws Exception;
+    }
+
+    /** 준비 요청 뒤 측정 요청의 지연(ns) */
+    private static long[] measureLatency(Request request) throws Exception {
         for (int i = 0; i < WARMUP_REQUESTS; i++) {
-            request(brandId, sort);
+            request.send();
         }
         long[] nanos = new long[MEASURED_REQUESTS];
         for (int i = 0; i < MEASURED_REQUESTS; i++) {
             long start = System.nanoTime();
-            request(brandId, sort);
+            request.send();
             nanos[i] = System.nanoTime() - start;
         }
-
-        appendReport(brandId, sort, actual, statements, nanos);
+        return nanos;
     }
 
     private Page request(Long brandId, String sort) throws Exception {
@@ -293,9 +345,14 @@ class ProductQueryExperiment {
         lines.add("");
         lines.add(latencyTable(nanos));
         lines.add("");
+        appendPlans(lines, statements, sql -> argsOf(sql, brandId));
+        Files.writeString(REPORT, String.join("\n", lines) + "\n", StandardOpenOption.APPEND);
+    }
+
+    private void appendPlans(List<String> lines, List<String> statements, Function<String, Object[]> argsFor) {
         for (int i = 0; i < statements.size(); i++) {
             String sql = statements.get(i);
-            Object[] args = argsOf(sql, brandId);
+            Object[] args = argsFor.apply(sql);
             lines.add("### SQL " + (i + 1) + " (인자 " + Arrays.toString(args) + ")");
             lines.add("");
             lines.add("```sql");
@@ -310,7 +367,6 @@ class ProductQueryExperiment {
             lines.add("```");
             lines.add("");
         }
-        Files.writeString(REPORT, String.join("\n", lines) + "\n", StandardOpenOption.APPEND);
     }
 
     // 목록 SQL 은 ([브랜드], offset, limit), 건수 SQL 은 ([브랜드]) 를 받는다. Querydsl 은 첫 페이지에도 offset 을 넘긴다
