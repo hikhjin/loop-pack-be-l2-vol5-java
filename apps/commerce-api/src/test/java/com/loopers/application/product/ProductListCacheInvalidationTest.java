@@ -2,6 +2,7 @@ package com.loopers.application.product;
 
 import com.loopers.application.brand.BrandFacade;
 import com.loopers.application.like.LikeFacade;
+import com.loopers.application.order.OrderDetailInfo;
 import com.loopers.application.order.OrderFacade;
 import com.loopers.application.order.OrderFacade.OrderRequestLine;
 import com.loopers.application.point.PointFacade;
@@ -113,9 +114,10 @@ class ProductListCacheInvalidationTest {
         return statistics().getPrepareStatementCount() > 0;
     }
 
-    private void confirmOrderOf(Long productId, int quantity) {
+    private Long confirmOrderOf(Long productId, int quantity) {
         Long orderId = orderFacade.createOrder(BUYER, List.of(new OrderRequestLine(productId, quantity))).id();
         orderFacade.confirmOrder(BUYER, orderId);
+        return orderId;
     }
 
     private void assertInvalidatedBrandAndAllOnly() {
@@ -243,29 +245,37 @@ class ProductListCacheInvalidationTest {
         }
     }
 
-    @DisplayName("관리자가 가격을 수정한 뒤 다시 조회하면, 새 가격과 price_asc 순서가 DB 결과와 같다.")
+    @DisplayName("관리자가 가격을 수정한 뒤 다시 조회하면, 새 가격과 price_asc 순서가 반영되고 이미 확정한 주문의 금액은 그대로다.")
     @Test
-    void reflectsPriceAndOrder_afterPriceUpdate() {
+    void reflectsPriceAndOrder_afterPriceUpdate_keepingPastOrderAmount() {
         // arrange
+        Long pastOrderId = confirmOrderOf(productIds.get(0), 1);
         Page<ProductInfo> before = productFacade.getProducts(brandId, ProductSort.PRICE_ASC, FIRST_PAGE);
 
         // act
         adminProductFacade.updateProduct(productIds.get(0), "가장 비싸진 상품", 10_000L);
         Page<ProductInfo> after = productFacade.getProducts(brandId, ProductSort.PRICE_ASC, FIRST_PAGE);
+        OrderDetailInfo pastOrder = orderFacade.getMyOrder(BUYER, pastOrderId);
 
         // assert
         assertAll(
             () -> assertThat(before.getContent()).extracting(ProductInfo::id).containsExactly(productIds.get(0), productIds.get(1), productIds.get(2)),
             () -> assertThat(after.getContent()).extracting(ProductInfo::id).containsExactly(productIds.get(1), productIds.get(2), productIds.get(0)),
-            () -> assertThat(after.getContent().get(2).price()).isEqualTo(10_000L)
+            () -> assertThat(after.getContent().get(2).price()).isEqualTo(10_000L),
+            () -> assertThat(pastOrder.paymentAmount()).isEqualTo(1_000L),
+            () -> assertThat(pastOrder.items()).extracting(OrderDetailInfo.Item::unitPrice).containsExactly(1_000L)
         );
     }
 
-    @DisplayName("브랜드를 일괄 삭제한 뒤 다시 조회하면, 그 브랜드 목록은 비고 전체 목록에서도 빠진다. 다른 브랜드는 그대로다.")
+    @DisplayName("브랜드를 일괄 삭제한 뒤 다시 조회하면, 그 브랜드 목록은 비고 전체 목록에서도 빠진다. 다른 브랜드와 과거 주문은 그대로다.")
     @Test
-    void excludesDeletedBrandProducts_afterBrandDelete() {
+    void excludesDeletedBrandProducts_afterBrandDelete_keepingPastOrder() {
+        // arrange
+        Long pastOrderId = confirmOrderOf(productIds.get(0), 1);
+
         // act
         brandFacade.deleteBrand(brandId);
+        OrderDetailInfo pastOrder = orderFacade.getMyOrder(BUYER, pastOrderId);
 
         // assert
         Page<ProductInfo> brandPage = productFacade.getProducts(brandId, ProductSort.LATEST, FIRST_PAGE);
@@ -274,7 +284,10 @@ class ProductListCacheInvalidationTest {
             () -> assertThat(brandPage.getContent()).isEmpty(),
             () -> assertThat(brandPage.getTotalElements()).isZero(),
             () -> assertThat(allPage.getContent()).extracting(ProductInfo::brandId).containsOnly(otherBrandId),
-            () -> assertThat(allPage.getTotalElements()).isEqualTo(1)
+            () -> assertThat(allPage.getTotalElements()).isEqualTo(1),
+            () -> assertThat(pastOrder.status()).isEqualTo("CONFIRMED"),
+            () -> assertThat(pastOrder.paymentAmount()).isEqualTo(1_000L),
+            () -> assertThat(pastOrder.items()).extracting(OrderDetailInfo.Item::onSale).containsExactly(false)
         );
     }
 

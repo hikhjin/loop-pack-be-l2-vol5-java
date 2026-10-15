@@ -1,6 +1,10 @@
 package com.loopers.infrastructure.product;
 
 import com.loopers.application.brand.BrandFacade;
+import com.loopers.application.order.OrderFacade;
+import com.loopers.application.order.OrderFacade.OrderRequestLine;
+import com.loopers.application.order.OrderInfo;
+import com.loopers.application.point.PointFacade;
 import com.loopers.application.product.AdminProductFacade;
 import com.loopers.application.product.ProductFacade;
 import com.loopers.application.product.ProductInfo;
@@ -27,6 +31,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -81,6 +86,12 @@ class RedisProductListCacheFailureTest {
     private ProductService productService;
 
     @Autowired
+    private OrderFacade orderFacade;
+
+    @Autowired
+    private PointFacade pointFacade;
+
+    @Autowired
     private RedisProductListCache cache;
 
     @Autowired
@@ -125,8 +136,12 @@ class RedisProductListCacheFailureTest {
         return productFacade.getProducts(brandId, ProductSort.PRICE_ASC, FIRST_PAGE);
     }
 
+    private ProductInfo infoOf(Page<ProductInfo> page, Long id) {
+        return page.getContent().stream().filter(info -> info.id().equals(id)).findFirst().orElseThrow();
+    }
+
     private long priceOf(Page<ProductInfo> page, Long id) {
-        return page.getContent().stream().filter(info -> info.id().equals(id)).findFirst().orElseThrow().price();
+        return infoOf(page, id).price();
     }
 
     private long statementsOfFirstPage() {
@@ -179,6 +194,37 @@ class RedisProductListCacheFailureTest {
             () -> assertThat(priceOf(beforeRetry, productId)).isEqualTo(1_000L),
             () -> assertThat(priceOf(afterRetry, productId)).isEqualTo(5_000L),
             () -> assertThat(cache.hasPendingInvalidation(brandId)).isFalse()
+        );
+    }
+
+    @DisplayName("Redis 가 응답하지 않아도, 주문 확정은 DB 규칙대로 재고 · 포인트를 반영하고 성공한다. 품절 표시는 재처리 뒤 목록에 반영된다. (4.2, 5)")
+    @Test
+    void confirmsOrderByDatabaseRules_whileRedisIsUnresponsive() {
+        // arrange
+        Long buyer = 1L;
+        adminProductFacade.changeStock(productId, 1);
+        pointFacade.charge(buyer, 10_000L);
+        Long orderId = orderFacade.createOrder(buyer, List.of(new OrderRequestLine(productId, 1))).id();
+        firstPage();
+        pause();
+
+        // act
+        OrderInfo confirmed = orderFacade.confirmOrder(buyer, orderId);
+        boolean pendingDuringOutage = cache.hasPendingInvalidation(brandId);
+        resume();
+        Page<ProductInfo> beforeRetry = firstPage();
+        cache.retryPendingInvalidations();
+        Page<ProductInfo> afterRetry = firstPage();
+
+        // assert
+        assertAll(
+            () -> assertThat(confirmed.status()).isEqualTo("CONFIRMED"),
+            () -> assertThat(confirmed.paymentAmount()).isEqualTo(1_000L),
+            () -> assertThat(productService.getActiveProduct(productId).getStock()).isZero(),
+            () -> assertThat(pointFacade.getPoint(buyer).balance()).isEqualTo(9_000L),
+            () -> assertThat(pendingDuringOutage).isTrue(),
+            () -> assertThat(infoOf(beforeRetry, productId).soldOut()).isFalse(),
+            () -> assertThat(infoOf(afterRetry, productId).soldOut()).isTrue()
         );
     }
 
