@@ -106,8 +106,11 @@ public class RedisProductListCache implements ProductListCache {
         scopes.forEach(this::increaseVersion);
     }
 
-    /** 실패한 무효화를 다시 시도한다. 버전은 여러 번 올려도 해가 없어 중복을 따지지 않는다 (3.4) */
-    @Scheduled(fixedDelay = 1_000)
+    /**
+     * 실패한 무효화를 다시 시도한다. 버전은 여러 번 올려도 해가 없어 중복을 따지지 않는다 (3.4).
+     * 간격은 기본 1초이며, 장애 테스트가 재처리 시점을 직접 정할 수 있도록 설정으로 둔다
+     */
+    @Scheduled(fixedDelayString = "${product-list-cache.retry-delay-ms:1000}")
     void retryPendingInvalidations() {
         for (String scope : List.copyOf(pendingScopes)) {
             pendingScopes.remove(scope);
