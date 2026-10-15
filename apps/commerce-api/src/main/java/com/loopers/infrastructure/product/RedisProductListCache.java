@@ -8,6 +8,7 @@ import com.loopers.domain.product.ProductSort;
 import com.loopers.domain.product.ProductView;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -33,13 +34,14 @@ import java.util.function.Supplier;
 @Component
 public class RedisProductListCache implements ProductListCache {
 
-    static final Duration TTL = Duration.ofSeconds(60);
     static final String ALL = "all";
 
     private final StringRedisTemplate master;
     private final StringRedisTemplate replicaPreferred;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    /** 데이터 키의 수명. 무효화하지 않는 좋아요 수가 오래된 값일 수 있는 상한이기도 하다 (2.2, 5) */
+    private final Duration ttl;
 
     /** commit 뒤 버전 올리기에 실패한 범위. 일정에 따라 다시 올린다 (3.4) */
     private final Set<String> pendingScopes = ConcurrentHashMap.newKeySet();
@@ -51,12 +53,14 @@ public class RedisProductListCache implements ProductListCache {
         @Qualifier(ProductCacheRedisConfig.MASTER_TEMPLATE) StringRedisTemplate master,
         @Qualifier(ProductCacheRedisConfig.REPLICA_PREFERRED_TEMPLATE) StringRedisTemplate replicaPreferred,
         ObjectMapper objectMapper,
-        Clock clock
+        Clock clock,
+        @Value("${product-list-cache.ttl-seconds:60}") long ttlSeconds
     ) {
         this.master = master;
         this.replicaPreferred = replicaPreferred;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.ttl = Duration.ofSeconds(ttlSeconds);
     }
 
     /** 버전 읽기 → 데이터 읽기 → (miss) 원본 읽기 → 읽은 버전에 저장. 원본의 오류는 감싸지 않고 그대로 나간다 (4.1) */
@@ -84,7 +88,7 @@ public class RedisProductListCache implements ProductListCache {
 
         Page<ProductView> page = loader.get();
         try {
-            master.opsForValue().set(key, objectMapper.writeValueAsString(toCached(page)), TTL);
+            master.opsForValue().set(key, objectMapper.writeValueAsString(toCached(page)), ttl);
         } catch (RuntimeException | JsonProcessingException e) {
             log.warn("상품 목록 캐시에 저장하지 못함. key={}", key, e);
         }
