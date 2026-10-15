@@ -2,7 +2,9 @@ package com.loopers.experiment;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loopers.domain.product.ProductListCache;
 import com.loopers.utils.DatabaseCleanUp;
+import com.loopers.utils.RedisCleanUp;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -20,9 +22,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -55,6 +61,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>실행 계획에는 Hibernate 가 실제로 보낸 SQL 을 그대로 넣음 (SqlCapture)</li>
  *   <li>SQL 출력(show-sql)은 지연 측정에 섞이지 않도록 끔. 측정값은 build/experiment/product-query.md 에 남김</li>
  *   <li>기본 seed 의 장면을 모두 잰 뒤, 상품 수가 많은 브랜드(seed/week4-large-brand-seed.sql)를 더해 그 브랜드의 장면을 잼</li>
+ *   <li>목록 첫 페이지는 캐시된다(docs/week4/cache-design.md). 장면마다 hit 와 miss 를 나눠 잰다.
+ *       miss 는 요청마다 그 범위의 버전을 올려 만들며, 버전을 올리는 시간은 측정에서 뺀다</li>
+ *   <li>이 실험 전용 Redis 컨테이너를 쓰고, 마지막에 일시정지해 Redis 무응답 때 DB 로 우회하는 지연을 잰다</li>
  * </ul>
  * 실행: RUN_EXPERIMENT=true ./gradlew :apps:commerce-api:test --tests '*ProductQueryExperiment'
  */
@@ -80,8 +89,27 @@ class ProductQueryExperiment {
     private static final int SIZE = 20;
     private static final int WARMUP_REQUESTS = 50;
     private static final int MEASURED_REQUESTS = 200;
+    /** Redis 무응답 장면은 요청마다 대기 한도(100ms)를 기다리므로 표본을 줄인다 */
+    private static final int OUTAGE_WARMUP_REQUESTS = 5;
+    private static final int OUTAGE_MEASURED_REQUESTS = 50;
+
+    private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.0")).withExposedPorts(6379);
+
+    static {
+        REDIS.start();
+    }
+
+    @DynamicPropertySource
+    static void redisProperties(DynamicPropertyRegistry registry) {
+        registry.add("datasource.redis.master.host", REDIS::getHost);
+        registry.add("datasource.redis.master.port", () -> REDIS.getMappedPort(6379));
+        registry.add("datasource.redis.replicas[0].host", REDIS::getHost);
+        registry.add("datasource.redis.replicas[0].port", () -> REDIS.getMappedPort(6379));
+    }
     private static final List<String> PLAN_COLUMNS = List.of(
         "id", "select_type", "table", "type", "possible_keys", "key", "key_len", "ref", "rows", "filtered", "Extra");
+
+    private static final String LATENCY_HEADER = "| 구분 | 표본 | 평균(ms) | p50(ms) | p95(ms) | p99(ms) | 최대(ms) |\n|---|---|---|---|---|---|---|";
 
     /** 좋아요 수 행이 없는 상품과, 값이 관계 수와 다른 행의 수 */
     private static final String LIKE_COUNT_MISMATCH = "select count(*) from product p "
@@ -99,6 +127,12 @@ class ProductQueryExperiment {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private ProductListCache productListCache;
+
+    @Autowired
+    private RedisCleanUp redisCleanUp;
 
     private JdbcTemplate jdbcTemplate;
 
@@ -120,6 +154,7 @@ class ProductQueryExperiment {
     void seed() throws SQLException, IOException {
         jdbcTemplate = new JdbcTemplate(dataSource);
         databaseCleanUp.truncateAllTables();
+        redisCleanUp.truncateAll();
         runScript(SEED);
 
         Files.createDirectories(REPORT.getParent());
@@ -130,6 +165,7 @@ class ProductQueryExperiment {
             "- 요청: `GET /api/v1/products?[brandId=" + MEASURED_BRAND_ID + "&]sort={정렬}&page=" + PAGE + "&size=" + SIZE + "`",
             "- MockMvc 로 한 스레드에서 차례로 요청. 네트워크 · 톰캣은 포함하지 않음",
             "- 준비 " + WARMUP_REQUESTS + "회 뒤 측정 " + MEASURED_REQUESTS + "회. SQL 출력(show-sql) 끔",
+            "- 목록 첫 페이지 캐시: hit 는 같은 요청 반복, miss 는 요청마다 범위 버전을 올림(올리는 시간은 제외). Redis " + REDIS.getDockerImageName() + " 단일 노드",
             "",
             ""
         ));
@@ -137,7 +173,9 @@ class ProductQueryExperiment {
 
     @AfterAll
     void cleanUp() {
+        resumeRedis();
         databaseCleanUp.truncateAllTables();
+        redisCleanUp.truncateAll();
     }
 
     private void runScript(String script) throws SQLException {
@@ -207,7 +245,8 @@ class ProductQueryExperiment {
         lines.add("- 요청당 SQL: " + statements.size() + "개");
         lines.add("- 결과: 기대 결과와 일치");
         lines.add("");
-        lines.add(latencyTable(nanos));
+        lines.add(LATENCY_HEADER);
+        lines.add(latencyRow("상세", nanos));
         lines.add("");
         appendPlans(lines, statements, sql -> new Object[] {productId});
         Files.writeString(REPORT, String.join("\n", lines) + "\n", StandardOpenOption.APPEND);
@@ -244,16 +283,72 @@ class ProductQueryExperiment {
     }
 
     private void measureScenario(Long brandId, String sort) throws Exception {
-        // 한 번 요청해 결과 · SQL 수 · 실제 SQL 을 얻는다
+        Page expected = expectedPage(brandId, sort, seededProducts);
+
+        // miss: 이 범위의 버전을 올려 캐시를 버린 뒤 요청한다. 원본이 실행한 SQL 을 모은다
+        productListCache.invalidate(brandId);
         SqlCapture.clear();
-        Page actual = request(brandId, sort);
+        Page miss = request(brandId, sort);
         List<String> statements = SqlCapture.statements();
 
-        assertThat(actual).isEqualTo(expectedPage(brandId, sort, seededProducts));
+        // hit: 같은 요청을 다시 보낸다. SQL 이 없어야 한다
+        SqlCapture.clear();
+        Page hit = request(brandId, sort);
+        List<String> hitStatements = SqlCapture.statements();
 
-        long[] nanos = measureLatency(() -> request(brandId, sort));
+        assertAll(
+            () -> assertThat(miss).isEqualTo(expected),
+            () -> assertThat(hit).isEqualTo(expected),
+            () -> assertThat(hitStatements).isEmpty()
+        );
 
-        appendReport(brandId, sort, actual, statements, nanos);
+        long[] hitNanos = measureLatency(() -> request(brandId, sort));
+        long[] missNanos = measureLatency(() -> productListCache.invalidate(brandId), () -> request(brandId, sort),
+            WARMUP_REQUESTS, MEASURED_REQUESTS);
+
+        appendReport(brandId, sort, miss, statements, hitNanos, missNanos);
+    }
+
+    /** Redis 무응답 장면: 실험 전용 Redis 를 일시정지한 동안 목록이 DB 로 우회하는 지연 (cache-design.md 4.2) */
+    @ParameterizedTest(name = "Redis 무응답 · 브랜드 {0} · {1} 목록")
+    @CsvSource({"7, price_asc", ", likes_desc"})
+    @Order(5)
+    void measureRedisOutage(Long brandId, String sort) throws Exception {
+        Page expected = expectedPage(brandId, sort, seededProducts);
+        pauseRedis();
+        try {
+            SqlCapture.clear();
+            Page bypassed = request(brandId, sort);
+            List<String> statements = SqlCapture.statements();
+            assertAll(
+                () -> assertThat(bypassed).isEqualTo(expected),
+                () -> assertThat(statements).hasSize(2)
+            );
+
+            long[] nanos = measureLatency(() -> { }, () -> request(brandId, sort), OUTAGE_WARMUP_REQUESTS, OUTAGE_MEASURED_REQUESTS);
+
+            List<String> lines = new ArrayList<>();
+            lines.add("## Redis 무응답 · " + (brandId == null ? "전체" : "브랜드 " + brandId) + " · " + sort);
+            lines.add("");
+            lines.add("- 결과: 기대 결과와 일치. 요청당 SQL " + statements.size() + "개 (원본으로 우회)");
+            lines.add("");
+            lines.add(LATENCY_HEADER);
+            lines.add(latencyRow("우회", nanos));
+            lines.add("");
+            Files.writeString(REPORT, String.join("\n", lines) + "\n", StandardOpenOption.APPEND);
+        } finally {
+            resumeRedis();
+        }
+    }
+
+    private static void pauseRedis() {
+        REDIS.getDockerClient().pauseContainerCmd(REDIS.getContainerId()).exec();
+    }
+
+    private static void resumeRedis() {
+        if (Boolean.TRUE.equals(REDIS.getDockerClient().inspectContainerCmd(REDIS.getContainerId()).exec().getState().getPaused())) {
+            REDIS.getDockerClient().unpauseContainerCmd(REDIS.getContainerId()).exec();
+        }
     }
 
     @FunctionalInterface
@@ -261,13 +356,25 @@ class ProductQueryExperiment {
         Object send() throws Exception;
     }
 
+    @FunctionalInterface
+    private interface Preparation {
+        void run() throws Exception;
+    }
+
     /** 준비 요청 뒤 측정 요청의 지연(ns) */
     private static long[] measureLatency(Request request) throws Exception {
-        for (int i = 0; i < WARMUP_REQUESTS; i++) {
+        return measureLatency(() -> { }, request, WARMUP_REQUESTS, MEASURED_REQUESTS);
+    }
+
+    /** 요청마다 preparation 을 먼저 실행하고, 그 시간은 빼고 요청만 잰다 */
+    private static long[] measureLatency(Preparation preparation, Request request, int warmups, int samples) throws Exception {
+        for (int i = 0; i < warmups; i++) {
+            preparation.run();
             request.send();
         }
-        long[] nanos = new long[MEASURED_REQUESTS];
-        for (int i = 0; i < MEASURED_REQUESTS; i++) {
+        long[] nanos = new long[samples];
+        for (int i = 0; i < samples; i++) {
+            preparation.run();
             long start = System.nanoTime();
             request.send();
             nanos[i] = System.nanoTime() - start;
@@ -335,15 +442,18 @@ class ProductQueryExperiment {
         return new SeedProduct(i, ((i * 37L) % 100_000) + 100, likeCount, i % 13 == 0, (i * 7919L) % 10_000);
     }
 
-    private void appendReport(Long brandId, String sort, Page actual, List<String> statements, long[] nanos) throws IOException {
+    private void appendReport(Long brandId, String sort, Page actual, List<String> statements, long[] hitNanos, long[] missNanos)
+        throws IOException {
         List<String> lines = new ArrayList<>();
         lines.add("## " + (brandId == null ? "전체" : "브랜드 " + brandId) + " · " + sort);
         lines.add("");
-        lines.add("- 요청당 SQL: " + statements.size() + "개");
-        lines.add("- 결과: 기대 결과와 일치. totalCount " + actual.totalCount() + ", totalPages " + actual.totalPages());
+        lines.add("- 요청당 SQL: miss " + statements.size() + "개, hit 0개");
+        lines.add("- 결과: miss · hit 모두 기대 결과와 일치. totalCount " + actual.totalCount() + ", totalPages " + actual.totalPages());
         lines.add("- 첫 페이지 id: " + actual.items().stream().map(item -> String.valueOf(item.id())).toList());
         lines.add("");
-        lines.add(latencyTable(nanos));
+        lines.add(LATENCY_HEADER);
+        lines.add(latencyRow("hit", hitNanos));
+        lines.add(latencyRow("miss", missNanos));
         lines.add("");
         appendPlans(lines, statements, sql -> argsOf(sql, brandId));
         Files.writeString(REPORT, String.join("\n", lines) + "\n", StandardOpenOption.APPEND);
@@ -386,16 +496,13 @@ class ProductQueryExperiment {
         return args.toArray();
     }
 
-    private static String latencyTable(long[] nanos) {
+    private static String latencyRow(String label, long[] nanos) {
         long[] sorted = nanos.clone();
         Arrays.sort(sorted);
         double mean = Arrays.stream(sorted).average().orElse(0);
-        return String.join("\n",
-            "| 표본 | 평균(ms) | p50(ms) | p95(ms) | p99(ms) | 최대(ms) |",
-            "|---|---|---|---|---|---|",
-            String.format("| %d | %.2f | %.2f | %.2f | %.2f | %.2f |",
-                sorted.length, mean / 1e6, percentile(sorted, 0.50), percentile(sorted, 0.95),
-                percentile(sorted, 0.99), sorted[sorted.length - 1] / 1e6));
+        return String.format("| %s | %d | %.2f | %.2f | %.2f | %.2f | %.2f |",
+            label, sorted.length, mean / 1e6, percentile(sorted, 0.50), percentile(sorted, 0.95),
+            percentile(sorted, 0.99), sorted[sorted.length - 1] / 1e6);
     }
 
     private static double percentile(long[] sorted, double p) {
