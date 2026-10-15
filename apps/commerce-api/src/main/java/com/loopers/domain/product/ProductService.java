@@ -116,16 +116,21 @@ public class ProductService {
         return product;
     }
 
+    /** 잠금 안에서 바꾸기 전 품절 여부와 비교해, 품절 여부가 바뀌었는지 함께 돌려줌 (4주차 cache-design.md 3.3) */
     @Transactional
-    public Product changeStock(Long productId, int stock) {
+    public StockChange changeStock(Long productId, int stock) {
         Product product = getActiveProductForUpdate(productId);
+        boolean wasSoldOut = product.isSoldOut();
         product.changeStock(stock);
-        return product;
+        return new StockChange(product, wasSoldOut != product.isSoldOut());
     }
 
+    /** 삭제한 상품을 돌려줌. 목록 캐시의 무효화 범위(브랜드)를 정하는 데 씀 (4주차 cache-design.md 3.3) */
     @Transactional
-    public void delete(Long productId) {
-        getActiveProductForUpdate(productId).delete();
+    public Product delete(Long productId) {
+        Product product = getActiveProductForUpdate(productId);
+        product.delete();
+        return product;
     }
 
     /**

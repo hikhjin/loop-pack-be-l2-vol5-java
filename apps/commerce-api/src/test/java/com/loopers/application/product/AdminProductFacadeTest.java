@@ -5,6 +5,7 @@ import com.loopers.domain.brand.BrandErrorCode;
 import com.loopers.domain.brand.BrandService;
 import com.loopers.domain.brand.FakeBrandRepository;
 import com.loopers.domain.product.FakeProductLikeCountRepository;
+import com.loopers.domain.product.FakeProductListCache;
 import com.loopers.domain.product.FakeProductRepository;
 import com.loopers.domain.product.ProductService;
 import com.loopers.support.error.CoreException;
@@ -29,7 +30,11 @@ class AdminProductFacadeTest {
     void setUp() {
         brandRepository = new FakeBrandRepository();
         productRepository = new FakeProductRepository();
-        adminProductFacade = new AdminProductFacade(new ProductService(productRepository, new FakeProductLikeCountRepository(), Clock.systemDefaultZone()), new BrandService(brandRepository));
+        adminProductFacade = new AdminProductFacade(
+            new ProductService(productRepository, new FakeProductLikeCountRepository(), Clock.systemDefaultZone()),
+            new BrandService(brandRepository),
+            new FakeProductListCache()
+        );
     }
 
     @DisplayName("살아 있는 브랜드면, 재고 0 인 상품이 그 브랜드로 저장된다.")

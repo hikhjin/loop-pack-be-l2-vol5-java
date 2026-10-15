@@ -64,7 +64,7 @@ class ProductV1ApiE2ETest {
     // 모든 상품이 좋아요 수 행을 갖도록 생성 입구로 만든다 (4주차 설계 2.2)
     private Product saveProduct(String name, int stock) {
         Product product = productService.create(brand, name, 1_000L);
-        return productService.changeStock(product.getId(), stock);
+        return productService.changeStock(product.getId(), stock).product();
     }
 
     @DisplayName("GET /api/v1/brands/{brandId}")
