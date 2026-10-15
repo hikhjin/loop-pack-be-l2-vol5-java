@@ -6,12 +6,17 @@ import com.loopers.domain.brand.BrandErrorCode;
 import com.loopers.support.error.CoreException;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
+/**
+ * 고객 조회는 브랜드와 삭제 여부로 거른다. (brand_id, deleted_at) 인덱스로 브랜드의 살아 있는 상품을 찾고,
+ * 보조 인덱스에 담긴 식별자로 건수를 인덱스만으로 센다 (4주차 docs/week4/product-query-brand-index.md)
+ */
 @Entity
-@Table(name = "product")
+@Table(name = "product", indexes = @Index(name = "idx_product_brand_deleted", columnList = "brand_id, deleted_at"))
 public class Product extends BaseEntity {
 
     private static final int MAX_NAME_LENGTH = 50;
