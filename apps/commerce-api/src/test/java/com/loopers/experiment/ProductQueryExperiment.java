@@ -5,8 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.utils.DatabaseCleanUp;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -49,6 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>응답은 seed 규칙으로 따로 계산한 기대 결과와 비교함. 인덱스 · 쿼리를 바꾼 뒤에도 같은 비교로 결과가 바뀌지 않았는지 확인함</li>
  *   <li>실행 계획에는 Hibernate 가 실제로 보낸 SQL 을 그대로 넣음 (SqlCapture)</li>
  *   <li>SQL 출력(show-sql)은 지연 측정에 섞이지 않도록 끔. 측정값은 build/experiment/product-query.md 에 남김</li>
+ *   <li>기본 seed 의 장면을 모두 잰 뒤, 상품 수가 많은 브랜드(seed/week4-large-brand-seed.sql)를 더해 그 브랜드의 장면을 잼</li>
  * </ul>
  * 실행: RUN_EXPERIMENT=true ./gradlew :apps:commerce-api:test --tests '*ProductQueryExperiment'
  */
@@ -58,10 +62,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @EnabledIfEnvironmentVariable(named = "RUN_EXPERIMENT", matches = "true")
 class ProductQueryExperiment {
 
     private static final String SEED = "seed/week4-product-seed.sql";
+    private static final String LARGE_BRAND_SEED = "seed/week4-large-brand-seed.sql";
+    private static final long LARGE_BRAND_ID = 101L;
+    private static final int BASE_PRODUCTS = 10_000;
+    private static final int ALL_PRODUCTS = 30_000;
     private static final Path REPORT = Path.of("build", "experiment", "product-query.md");
 
     private static final long MEASURED_BRAND_ID = 7L;
@@ -71,6 +80,11 @@ class ProductQueryExperiment {
     private static final int MEASURED_REQUESTS = 200;
     private static final List<String> PLAN_COLUMNS = List.of(
         "id", "select_type", "table", "type", "possible_keys", "key", "key_len", "ref", "rows", "filtered", "Extra");
+
+    /** 좋아요 수 행이 없는 상품과, 값이 관계 수와 다른 행의 수 */
+    private static final String LIKE_COUNT_MISMATCH = "select count(*) from product p "
+        + "left join product_like_count c on c.product_id = p.id "
+        + "where c.id is null or c.like_count <> (select count(*) from likes l where l.product_id = p.id)";
 
     @Autowired
     private DataSource dataSource;
@@ -86,6 +100,9 @@ class ProductQueryExperiment {
 
     private JdbcTemplate jdbcTemplate;
 
+    /** 지금 DB 에 들어 있는 상품 순번의 끝. 큰 브랜드를 더하면 늘어남 */
+    private int seededProducts = BASE_PRODUCTS;
+
     /** seed 규칙으로 계산한 상품 한 건. DB 를 거치지 않은 기대 결과의 원천 */
     private record SeedProduct(long id, long price, long likeCount, boolean soldOut, long createdOffset) {}
 
@@ -98,10 +115,7 @@ class ProductQueryExperiment {
     void seed() throws SQLException, IOException {
         jdbcTemplate = new JdbcTemplate(dataSource);
         databaseCleanUp.truncateAllTables();
-        try (Connection connection = dataSource.getConnection()) {
-            ScriptUtils.executeSqlScript(connection, new ClassPathResource(SEED));
-        }
-        jdbcTemplate.queryForList("analyze table users, brand, product, likes");
+        runScript(SEED);
 
         Files.createDirectories(REPORT.getParent());
         Files.writeString(REPORT, String.join("\n",
@@ -121,7 +135,15 @@ class ProductQueryExperiment {
         databaseCleanUp.truncateAllTables();
     }
 
+    private void runScript(String script) throws SQLException {
+        try (Connection connection = dataSource.getConnection()) {
+            ScriptUtils.executeSqlScript(connection, new ClassPathResource(script));
+        }
+        jdbcTemplate.queryForList("analyze table users, brand, product, likes, product_like_count");
+    }
+
     @Test
+    @Order(1)
     void seedMatchesExpectedValues() {
         assertAll(
             () -> assertThat(count("select count(*) from users")).isEqualTo(1_000),
@@ -140,7 +162,10 @@ class ProductQueryExperiment {
             () -> assertThat(count("select count(*) from likes l join product p on p.id = l.product_id where p.deleted_at is null"))
                 .isEqualTo(94_276),
             () -> assertThat(count("select count(*) from likes l left join users u on u.id = l.user_id where u.id is null"))
-                .isZero()
+                .isZero(),
+            () -> assertThat(count("select count(*) from product_like_count")).isEqualTo(10_000),
+            () -> assertThat(count("select sum(like_count) from product_like_count")).isEqualTo(100_163),
+            () -> assertThat(count(LIKE_COUNT_MISMATCH)).isZero()
         );
     }
 
@@ -150,13 +175,39 @@ class ProductQueryExperiment {
         "7, latest", "7, price_asc", "7, likes_desc",
         ", latest", ", price_asc", ", likes_desc"
     })
+    @Order(2)
     void measure(Long brandId, String sort) throws Exception {
+        measureScenario(brandId, sort);
+    }
+
+    /** 기본 seed 장면을 모두 잰 뒤 큰 브랜드를 더한다. 첫 실행에서만 넣는다 */
+    @ParameterizedTest(name = "큰 브랜드 {0} · {1} 목록")
+    @CsvSource({"101, latest", "101, price_asc", "101, likes_desc"})
+    @Order(3)
+    void measureLargeBrand(Long brandId, String sort) throws Exception {
+        if (seededProducts == BASE_PRODUCTS) {
+            runScript(LARGE_BRAND_SEED);
+            seededProducts = ALL_PRODUCTS;
+            assertAll(
+                () -> assertThat(count("select count(*) from product where brand_id = ?", LARGE_BRAND_ID)).isEqualTo(20_000),
+                () -> assertThat(count("select count(*) from product where brand_id = ? and deleted_at is null", LARGE_BRAND_ID))
+                    .isEqualTo(18_824),
+                () -> assertThat(count("select sum(price) from product where brand_id = ? and deleted_at is null", LARGE_BRAND_ID))
+                    .isEqualTo(958_590_644),
+                () -> assertThat(count("select count(*) from likes")).isEqualTo(100_163 + 200_321),
+                () -> assertThat(count(LIKE_COUNT_MISMATCH)).isZero()
+            );
+        }
+        measureScenario(brandId, sort);
+    }
+
+    private void measureScenario(Long brandId, String sort) throws Exception {
         // 한 번 요청해 결과 · SQL 수 · 실제 SQL 을 얻는다
         SqlCapture.clear();
         Page actual = request(brandId, sort);
         List<String> statements = SqlCapture.statements();
 
-        assertThat(actual).isEqualTo(expectedPage(brandId, sort));
+        assertThat(actual).isEqualTo(expectedPage(brandId, sort, seededProducts));
 
         // 지연 분포
         for (int i = 0; i < WARMUP_REQUESTS; i++) {
@@ -194,15 +245,15 @@ class ProductQueryExperiment {
     }
 
     // seed 규칙(docs/week4/product-query-seed.md 2절)으로 살아 있는 상품을 만들고 API 계약의 필터 · 정렬로 자른다
-    private static Page expectedPage(Long brandId, String sort) {
+    private static Page expectedPage(Long brandId, String sort, int seededProducts) {
         Comparator<SeedProduct> order = switch (sort) {
             case "latest" -> Comparator.comparingLong(SeedProduct::createdOffset).reversed();
             case "price_asc" -> Comparator.comparingLong(SeedProduct::price);
             case "likes_desc" -> Comparator.comparingLong(SeedProduct::likeCount).reversed();
             default -> throw new IllegalArgumentException(sort);
         };
-        List<SeedProduct> candidates = IntStream.rangeClosed(1, 10_000)
-            .filter(i -> i % 17 != 0 && (brandId == null || (i % 100) + 1 == brandId))
+        List<SeedProduct> candidates = IntStream.rangeClosed(1, seededProducts)
+            .filter(i -> i % 17 != 0 && (brandId == null || brandOf(i) == brandId))
             .mapToObj(ProductQueryExperiment::seedProduct)
             .sorted(order.thenComparing(Comparator.comparingLong(SeedProduct::id).reversed()))
             .toList();
@@ -213,6 +264,11 @@ class ProductQueryExperiment {
             .toList();
         int totalPages = (candidates.size() + SIZE - 1) / SIZE;
         return new Page(items, PAGE, SIZE, candidates.size(), totalPages);
+    }
+
+    // 기본 seed 는 (i % 100) + 1, 큰 브랜드 seed 는 모두 101
+    private static long brandOf(int i) {
+        return i <= BASE_PRODUCTS ? (i % 100) + 1 : LARGE_BRAND_ID;
     }
 
     private static SeedProduct seedProduct(int i) {

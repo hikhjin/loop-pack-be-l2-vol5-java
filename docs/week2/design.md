@@ -65,7 +65,7 @@ Order ── 품목 금액 합계 / 만료 시각 / 포인트 결제액 · 결�
 - **근거:** Like는 사용자–상품 관계 자체만 표현한다. Like 자신의 규칙에는 User의 상태도 Product의 상태도 필요하지 않다.
   - 같은 사용자–상품 관계의 중복은 (`userId`, `productId`) 유니크 키로 막는다. (LIK-02)
   - 본인 관계만 취소하며, 상품이 삭제되었어도 취소할 수 있다. (LIK-03)
-  - 좋아요 수는 관계에서 count로 조회한다.
+  - 좋아요 수는 관계에서 count로 조회한다. → **4주차에 변경:** 상품별 좋아요 수 행(`product_like_count`)에서 읽고, 관계가 실제로 생기거나 지워질 때만 같은 트랜잭션에서 증감한다 (`docs/week4/like-count-design.md`).
   - "삭제된 상품에는 새 좋아요를 달 수 없다"(LIK-01)는 Product의 상태가 필요한 유스케이스의 협력이며, 등록 흐름에서 상품을 조회할 때 확인한다.
 - **Product → Brand와의 차이:** 상품이 브랜드에 속한다는 것은 Product가 존재하는 동안 계속 지켜야 하는 불변식이라 Product가 Brand를 들고 스스로 지킨다. 반면 LIK-01은 좋아요를 **등록하는 시점에 한 번** 확인하면 되고, 등록된 뒤 상품이 삭제되어도 그 관계는 남는다(LIK-03). 확인하는 시점에만 Product를 조회하면 되므로 참조를 들 이유가 없다.
 - **버린 대안:** Product를 객체로 참조한다. 내 좋아요 목록에서 상품 정보에 바로 접근할 수 있지만, 규칙이 아닌 조회 편의 때문에 참조가 생긴다. Product → Brand와 판단 기준이 어긋난다.
@@ -450,7 +450,7 @@ infrastructure/product        ────────────────�
 
   | 타입 | 위치 | 쓰는 곳 | 만드는 곳 |
   |---|---|---|---|
-  | `ProductView` | `domain/product` | 고객 상품 목록 · 상세 (좋아요 수 집계 · 브랜드 설명) | `ProductRepository` (QueryDSL, outer join · 동적 정렬) |
+  | `ProductView` | `domain/product` | 고객 상품 목록 · 상세 (좋아요 수 · 브랜드 설명) | `ProductRepository` (QueryDSL, 좋아요 수 행 조인 · 동적 정렬. 4주차 전에는 관계 outer join 집계) |
   | `ProductWithBrand` | `domain/product` | 관리자 상품 목록 · 상세 (재고 수량 · 브랜드 이름) | `ProductRepository` (JPQL 생성자 조회) |
   | `LikedProduct` | `domain/like` | 내 좋아요 목록 (상품 요약 · 좋아요 시각) | `LikeRepository` (QueryDSL) |
   | `OrderSummary` | `domain/order` | 고객 · 관리자 주문 목록 (품목 개수 · 대표 상품명) | **`OrderService` 가 트랜잭션 안에서 엔티티로 만든다.** `open-in-view` 가 꺼져 있어 트랜잭션 밖에서 품목을 읽을 수 없고, 품목은 설정된 `default_batch_fetch_size` 로 한 번에 불러온다 |
@@ -644,6 +644,7 @@ GET  /api/v1/orders/{id}          주문 조회    → 품목·금액·상태·�
 
 - **재고 수량은 고객 응답에 넣지 않는다.** 품절 여부만 내보낸다 (2.4).
 - **좋아요 수는 관계에서 집계한다.** 좋아요가 없는 상품이 빠지지 않도록 outer join으로 세고, `likes_desc` 정렬도 이 집계로 DB에서 처리한다. 애플리케이션에서 조합한 뒤 정렬하면 페이징이 깨진다.
+  - **4주차에 변경:** 첫 페이지를 위해 후보 전체를 매번 집계하는 비용이 측정되어, 상품별 좋아요 수 행에서 읽는다. 모든 상품이 행을 가지며(좋아요 0 포함), `likes_desc` 정렬은 여전히 DB에서 처리한다 (`docs/week4/like-count-design.md`).
 
 **삭제된 대상**
 
@@ -973,7 +974,7 @@ GET  /api/v1/orders/{id}          주문 조회    → 품목·금액·상태·�
 | 대상 | 확인할 것 |
 |---|---|
 | 논리 삭제 | 삭제된 브랜드·상품이 빠지는가(2.5). 삭제 조건을 쿼리마다 명시하므로 **모든 경로**를 확인한다: `ProductService` 의 살아 있는 상품 조회(식별자 목록으로 묻는 판매 여부 조회 포함), 고객 상품 목록·상세 조회, 내 좋아요 목록, 브랜드 삭제 입구의 상품 존재 조회(재고 0 포함), 관리자 브랜드·상품 목록 |
-| 상품 목록 조회 | 좋아요가 없는 상품도 나오는가(outer join), `likes_desc` · `price_asc` · `latest` 와 보조 정렬(식별자 desc), `brandId` 필터, 페이징과 `totalCount` |
+| 상품 목록 조회 | 좋아요가 없는 상품도 나오는가(4주차부터 좋아요 수 행 0), `likes_desc` · `price_asc` · `latest` 와 보조 정렬(식별자 desc), `brandId` 필터, 페이징과 `totalCount` |
 | 유니크 제약 | 같은 사용자–상품 좋아요(LIK-02), 사용자당 Point 하나(2.3) |
 | 주문 저장 | 품목 · 스냅샷 · 만료 시각 · 결제액 · 결제 시각이 재조회되는가 |
 | 소유자 조건 조회 | 타인의 주문 · 좋아요가 조회되지 않는가(6.1) |
