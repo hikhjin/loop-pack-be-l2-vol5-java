@@ -6,8 +6,8 @@ import com.loopers.domain.like.LikeRepository;
 import com.loopers.domain.like.LikedProduct;
 import com.loopers.domain.like.QLike;
 import com.loopers.domain.product.QProduct;
+import com.loopers.domain.product.QProductLikeCount;
 import com.querydsl.core.types.Projections;
-import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
@@ -26,9 +26,9 @@ import java.util.Optional;
 public class LikeRepositoryImpl implements LikeRepository {
 
     private static final QLike LIKE = QLike.like;
-    private static final QLike OTHER_LIKE = new QLike("otherLike");
     private static final QProduct PRODUCT = QProduct.product;
     private static final QBrand BRAND = QBrand.brand;
+    private static final QProductLikeCount LIKE_COUNT = QProductLikeCount.productLikeCount;
     private static final String RELATION_UNIQUE_KEY = "uk_likes_user_product";
 
     private final LikeJpaRepository likeJpaRepository;
@@ -73,11 +73,12 @@ public class LikeRepositoryImpl implements LikeRepository {
         List<LikedProduct> content = queryFactory
             .select(Projections.constructor(LikedProduct.class,
                 PRODUCT.id, PRODUCT.name, PRODUCT.price, PRODUCT.stock,
-                JPAExpressions.select(OTHER_LIKE.count()).from(OTHER_LIKE).where(OTHER_LIKE.productId.eq(PRODUCT.id)),
+                LIKE_COUNT.likeCount,
                 BRAND.id, BRAND.name, LIKE.createdAt))
             .from(LIKE)
             .join(PRODUCT).on(PRODUCT.id.eq(LIKE.productId))
             .join(PRODUCT.brand, BRAND)
+            .join(LIKE_COUNT).on(LIKE_COUNT.productId.eq(PRODUCT.id))
             .where(LIKE.userId.eq(userId), PRODUCT.deletedAt.isNull())
             .orderBy(LIKE.createdAt.desc(), LIKE.id.desc())
             .offset(pageable.getOffset())

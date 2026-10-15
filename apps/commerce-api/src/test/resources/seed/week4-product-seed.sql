@@ -58,4 +58,12 @@ JOIN like_seq l ON l.j < CASE
     ELSE ((p.i * 31) % 97) % 17 + 1
 END;
 
+-- 상품별 좋아요 수 행. 모든 상품이 한 행을 가지며 값은 관계 수와 같다 (4주차 설계 docs/week4/like-count-design.md 2.2)
+-- 운영 데이터의 backfill 도 같은 문장이다
+INSERT INTO product_like_count (product_id, like_count, created_at, updated_at, deleted_at)
+SELECT p.id, COUNT(l.id), p.created_at, p.created_at, NULL
+FROM product p
+LEFT JOIN likes l ON l.product_id = p.id
+GROUP BY p.id, p.created_at;
+
 SET SESSION cte_max_recursion_depth = 1000;
