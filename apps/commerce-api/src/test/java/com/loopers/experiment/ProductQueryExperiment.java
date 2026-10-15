@@ -309,12 +309,17 @@ class ProductQueryExperiment {
         appendReport(brandId, sort, miss, statements, hitNanos, missNanos);
     }
 
-    /** Redis 무응답 장면: 실험 전용 Redis 를 일시정지한 동안 목록이 DB 로 우회하는 지연 (cache-design.md 4.2) */
+    /**
+     * Redis 무응답 장면: 실험 전용 Redis 를 일시정지한 동안 목록이 DB 로 우회하는 지연 (cache-design.md 4.2).
+     * 큰 브랜드를 더한 뒤라 앞선 장면과 데이터가 다르다. 그래서 같은 데이터 · 같은 표본 수로 Redis 정상 때의 miss 를 바로 앞에 재서 비교한다
+     */
     @ParameterizedTest(name = "Redis 무응답 · 브랜드 {0} · {1} 목록")
     @CsvSource({"7, price_asc", ", likes_desc"})
     @Order(5)
     void measureRedisOutage(Long brandId, String sort) throws Exception {
         Page expected = expectedPage(brandId, sort, seededProducts);
+        long[] missNanos = measureLatency(() -> productListCache.invalidate(brandId), () -> request(brandId, sort),
+            OUTAGE_WARMUP_REQUESTS, OUTAGE_MEASURED_REQUESTS);
         pauseRedis();
         try {
             SqlCapture.clear();
@@ -331,9 +336,11 @@ class ProductQueryExperiment {
             lines.add("## Redis 무응답 · " + (brandId == null ? "전체" : "브랜드 " + brandId) + " · " + sort);
             lines.add("");
             lines.add("- 결과: 기대 결과와 일치. 요청당 SQL " + statements.size() + "개 (원본으로 우회)");
+            lines.add("- 상품 " + seededProducts + "개 상태(큰 브랜드 포함). miss(정상)는 같은 상태에서 Redis 정상일 때 잰 값");
             lines.add("");
             lines.add(LATENCY_HEADER);
-            lines.add(latencyRow("우회", nanos));
+            lines.add(latencyRow("miss(정상)", missNanos));
+            lines.add(latencyRow("우회(무응답)", nanos));
             lines.add("");
             Files.writeString(REPORT, String.join("\n", lines) + "\n", StandardOpenOption.APPEND);
         } finally {
