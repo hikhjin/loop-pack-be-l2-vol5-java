@@ -7,6 +7,7 @@ import com.loopers.domain.product.ProductService;
 import com.loopers.infrastructure.brand.BrandJpaRepository;
 import com.loopers.infrastructure.product.ProductJpaRepository;
 import com.loopers.utils.DatabaseCleanUp;
+import com.loopers.utils.RedisCleanUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +44,9 @@ class ProductV1ApiE2ETest {
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
 
+    @Autowired
+    private RedisCleanUp redisCleanUp;
+
     private Brand brand;
 
     @BeforeEach
@@ -53,6 +57,8 @@ class ProductV1ApiE2ETest {
     @AfterEach
     void tearDown() {
         databaseCleanUp.truncateAllTables();
+        // 목록 첫 페이지는 캐시된다. DB 를 비우면 식별자가 다시 쓰이므로 캐시도 함께 비운다 (4주차 cache-design.md)
+        redisCleanUp.truncateAll();
     }
 
     // 모든 상품이 좋아요 수 행을 갖도록 생성 입구로 만든다 (4주차 설계 2.2)
