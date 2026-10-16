@@ -50,3 +50,4 @@
 | 6 | `product-query-detail.md` | 상세 측정 (캐시 대상 판단) |
 | 7 | `cache-design.md` | 목록 첫 페이지 캐시 설계 |
 | 8 | `product-query-cache.md` | 캐시 측정: hit 약 1ms, Redis 무응답 때 요청마다 약 108~110ms 추가 |
+| 9 | `optimizer-plan.md` | 옵티마이저 트레이스로 본 조인 순서 변화: 행 수 추정이 맞아지자 4.5% 차이로 계획이 바뀜, 조기 종료는 비용에 없음 |
