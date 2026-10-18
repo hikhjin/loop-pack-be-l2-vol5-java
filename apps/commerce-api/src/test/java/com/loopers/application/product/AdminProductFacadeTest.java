@@ -4,6 +4,7 @@ import com.loopers.domain.brand.Brand;
 import com.loopers.domain.brand.BrandErrorCode;
 import com.loopers.domain.brand.BrandService;
 import com.loopers.domain.brand.FakeBrandRepository;
+import com.loopers.domain.product.FakeProductDetailCache;
 import com.loopers.domain.product.FakeProductLikeCountRepository;
 import com.loopers.domain.product.FakeProductListCache;
 import com.loopers.domain.product.FakeProductRepository;
@@ -33,7 +34,8 @@ class AdminProductFacadeTest {
         adminProductFacade = new AdminProductFacade(
             new ProductService(productRepository, new FakeProductLikeCountRepository(), Clock.systemDefaultZone()),
             new BrandService(brandRepository),
-            new FakeProductListCache()
+            new FakeProductListCache(),
+            new FakeProductDetailCache()
         );
     }
 

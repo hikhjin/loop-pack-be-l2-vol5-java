@@ -12,6 +12,7 @@ import com.loopers.domain.point.FakePointRepository;
 import com.loopers.domain.point.PointErrorCode;
 import com.loopers.domain.point.PointService;
 import com.loopers.domain.product.FakeProductLikeCountRepository;
+import com.loopers.domain.product.FakeProductDetailCache;
 import com.loopers.domain.product.FakeProductListCache;
 import com.loopers.domain.product.FakeProductRepository;
 import com.loopers.domain.product.Product;
@@ -82,6 +83,7 @@ class OrderFacadeTest {
     private MutableClock clock;
     private OrderFacade orderFacade;
     private FakeProductListCache productListCache;
+    private FakeProductDetailCache productDetailCache;
     private Brand brand;
 
     @BeforeEach
@@ -94,7 +96,9 @@ class OrderFacadeTest {
         clock = new MutableClock(CREATED_AT);
         ProductService productService = new ProductService(productRepository, new FakeProductLikeCountRepository(), clock);
         productListCache = new FakeProductListCache();
-        orderFacade = new OrderFacade(new OrderService(orderRepository, clock), productService, pointService, productListCache);
+        productDetailCache = new FakeProductDetailCache();
+        orderFacade = new OrderFacade(new OrderService(orderRepository, clock), productService, pointService, productListCache,
+            productDetailCache);
         brand = brandRepository.save(new Brand("브랜드", null));
     }
 
@@ -398,10 +402,10 @@ class OrderFacadeTest {
         }
     }
 
-    @DisplayName("주문을 확정할 때 목록 캐시는, (4주차 cache-design.md 3.3)")
+    @DisplayName("주문을 확정할 때 목록 · 상세 캐시는, (4주차 cache-design.md 3.3, detail-cache-design.md 3.2)")
     @Nested
     class ListCacheInvalidation {
-        @DisplayName("이번 차감으로 품절이 된 상품이 있으면, 그 상품의 브랜드를 무효화한다.")
+        @DisplayName("이번 차감으로 품절이 된 상품이 있으면, 그 상품의 브랜드 목록과 그 상품의 상세만 무효화한다.")
         @Test
         void invalidatesBrand_whenProductBecomesSoldOut() {
             // arrange
@@ -414,7 +418,10 @@ class OrderFacadeTest {
             confirm(USER_ID, order.getId());
 
             // assert
-            assertThat(productListCache.invalidatedBrandIds()).containsExactly(brand.getId());
+            assertAll(
+                () -> assertThat(productListCache.invalidatedBrandIds()).containsExactly(brand.getId()),
+                () -> assertThat(productDetailCache.invalidatedProductIds()).containsExactly(soldOutLater.getId())
+            );
         }
 
         @DisplayName("재고가 남으면 품절 여부가 바뀌지 않아, 무효화하지 않는다.")
@@ -429,7 +436,10 @@ class OrderFacadeTest {
             confirm(USER_ID, order.getId());
 
             // assert
-            assertThat(productListCache.invalidatedBrandIds()).isEmpty();
+            assertAll(
+                () -> assertThat(productListCache.invalidatedBrandIds()).isEmpty(),
+                () -> assertThat(productDetailCache.invalidatedProductIds()).isEmpty()
+            );
         }
 
         @DisplayName("확정이 실패하면, 품절이 될 뻔한 상품이 있어도 무효화하지 않는다.")
@@ -444,7 +454,10 @@ class OrderFacadeTest {
             assertThrows(CoreException.class, () -> confirm(USER_ID, order.getId()));
 
             // assert
-            assertThat(productListCache.invalidatedBrandIds()).isEmpty();
+            assertAll(
+                () -> assertThat(productListCache.invalidatedBrandIds()).isEmpty(),
+                () -> assertThat(productDetailCache.invalidatedProductIds()).isEmpty()
+            );
         }
     }
 

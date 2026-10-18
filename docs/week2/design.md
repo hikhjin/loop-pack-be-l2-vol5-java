@@ -420,6 +420,7 @@ infrastructure/product        ────────────────�
   - **버린 대안:** 조율하는 서비스가 다른 도메인의 저장 약속을 직접 쓴다. 트랜잭션과 의존은 단순하지만 삭제 필터·대상 없음 오류·0원 Point 변환을 서비스마다 다시 쓴다.
   - **대상 없음 오류도 호출된 서비스가 던진다.** 주문 생성·좋아요 등록·주문 확정이 모두 `ProductService` 의 `PRODUCT_NOT_FOUND` 를 그대로 쓴다. 이번 범위에서는 세 유스케이스의 오류가 모두 404로 같다.
   - **다시 검토할 조건:** 유스케이스마다 오류가 달라질 때(예: 확정에서만 삭제된 상품을 409로 알림, D-26). 그때는 `ProductService` 가 살아 있는 상품만 돌려주고 오류는 호출자가 정하는 방식으로 바꾼다. 공유된 예외를 잡아 다른 예외로 바꾸지 않는다(2.6과 같은 이유).
+    - **4주차에 넓힌 조건:** 호출자가 "대상 없음"을 오류가 아니라 **값으로 다뤄야 할 때**(예: 상세 캐시가 "없음"을 저장, `../week4/detail-cache-design.md` 3.4)도 같은 방식으로 바꾼다. 상세 조회만 `ProductService.findActiveProductView`(Optional)를 쓰고 `ProductFacade` 가 같은 `PRODUCT_NOT_FOUND` 를 던진다. 다른 유스케이스는 그대로다.
 - **브랜드 삭제 입구는 `BrandRepository` 에 질문을 두고, 구현은 `infrastructure` 에서 상품 테이블을 조회한다.** `domain/product` 는 Brand 참조(D-02)로 `domain/brand` 를 안다. `BrandService` 가 `ProductService` 나 `ProductRepository` 를 알면 두 패키지가 서로를 아는 순환이 생긴다.
   - `BrandRepository` 에 "이 브랜드에 살아 있는 상품(재고 0 포함)이 있는가"를 묻는 메서드를 두면, `domain/brand` 는 상품 클래스를 import하지 않는다. 의존은 `product → brand` 한 방향만 남는다.
   - **버린 대안:** 브랜드 삭제의 조율을 `domain/product` 로 옮긴다(기능 단위 패키지와 어긋남), 순환을 남긴다(두 패키지를 떼어 낼 수 없음).

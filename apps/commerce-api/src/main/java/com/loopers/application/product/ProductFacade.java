@@ -1,9 +1,12 @@
 package com.loopers.application.product;
 
+import com.loopers.domain.product.ProductDetailCache;
+import com.loopers.domain.product.ProductErrorCode;
 import com.loopers.domain.product.ProductListCache;
 import com.loopers.domain.product.ProductService;
 import com.loopers.domain.product.ProductSort;
 import com.loopers.domain.product.ProductView;
+import com.loopers.support.error.CoreException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +21,7 @@ public class ProductFacade {
 
     private final ProductService productService;
     private final ProductListCache productListCache;
+    private final ProductDetailCache productDetailCache;
 
     /**
      * 고객 쪽 brandId 는 조회 조건이다. 없는 브랜드면 빈 목록이 된다 (설계 D-24).
@@ -31,8 +35,14 @@ public class ProductFacade {
         return views.map(ProductInfo::from);
     }
 
+    /**
+     * 캐시는 "없음"도 저장하므로 없는 상품 · 삭제된 상품의 404 를 여기서 정함 (4주차 detail-cache-design.md 3.3, 3.4).
+     * 이 메서드는 트랜잭션을 열지 않아, 캐시가 상품 버전을 읽은 뒤에 원본 읽기 트랜잭션이 시작된다 (4)
+     */
     public ProductInfo getProduct(Long productId) {
-        return ProductInfo.from(productService.getActiveProductView(productId));
+        ProductView view = productDetailCache.get(productId, () -> productService.findActiveProductView(productId))
+            .orElseThrow(() -> new CoreException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        return ProductInfo.from(view);
     }
 
     private static boolean isCacheable(Pageable pageable) {

@@ -14,6 +14,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -86,10 +87,13 @@ public class ProductService {
         return productRepository.findActiveWithBrand(brandId, pageable);
     }
 
+    /**
+     * 살아 있는 상품만 돌려주고, 없으면 비어 있음. 상세 캐시가 "없음"을 값으로 저장하므로 오류는 호출자가 정함
+     * (4주차 docs/week4/detail-cache-design.md 3.4, 2주차 설계 4.4 의 넓힌 조건)
+     */
     @Transactional(readOnly = true)
-    public ProductView getActiveProductView(Long productId) {
-        return productRepository.findActiveView(productId)
-            .orElseThrow(() -> new CoreException(ProductErrorCode.PRODUCT_NOT_FOUND));
+    public Optional<ProductView> findActiveProductView(Long productId) {
+        return productRepository.findActiveView(productId);
     }
 
     @Transactional(readOnly = true)

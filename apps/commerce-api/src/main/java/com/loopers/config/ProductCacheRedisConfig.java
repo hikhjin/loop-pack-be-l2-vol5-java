@@ -16,10 +16,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import java.time.Duration;
 
 /**
- * 상품 목록 캐시 전용 Redis 연결 (4주차 docs/week4/cache-design.md 4.2).
+ * 상품 목록 · 상세 캐시 전용 Redis 연결 (4주차 docs/week4/cache-design.md 4.2, detail-cache-design.md 4).
  * 공통 모듈(modules/redis)은 batch · streamer 도 쓰므로 바꾸지 않고, 같은 datasource.redis 설정으로 commerce-api 안에서만 연결을 따로 둔다.
  * 명령 대기 한도는 100ms 이고, 연결이 끊긴 동안의 명령은 기다리지 않고 바로 실패한다.
- * 실패한 무효화를 다시 시도하는 일정(RedisProductListCache)도 여기서 켠다 (3.4)
+ * 실패한 무효화를 다시 시도하는 일정(RedisProductListCache, RedisProductDetailCache)도 여기서 켠다 (3.4)
  */
 @Configuration
 @EnableScheduling
