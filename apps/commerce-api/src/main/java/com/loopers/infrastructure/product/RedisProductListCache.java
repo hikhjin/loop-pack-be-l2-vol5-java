@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 /**
  * 상품 목록 첫 페이지의 Redis 캐시 (4주차 docs/week4/cache-design.md).
  * 데이터 키에 범위(브랜드 · 전체) 버전을 넣고, 무효화는 버전을 올려 옛 키를 버린다. 옛 키는 TTL 로 정리된다.
+ * 버전과 데이터는 상세 캐시와 같은 스크립트(VersionedCacheScript) 한 번으로 master 에서 읽는다 (4.1).
  * 캐시 쪽의 어떤 실패도 원본 결과로 대신하고 쓰기 결과에 영향을 주지 않는다. 원본(loader)의 오류는 감싸지 않는다 (4.2)
  */
 @Slf4j
@@ -36,8 +37,8 @@ public class RedisProductListCache implements ProductListCache {
 
     static final String ALL = "all";
 
+    /** 버전 · 데이터 읽기와 저장 · 버전 올리기를 모두 master 에서 한다 (VersionedCacheScript) */
     private final StringRedisTemplate master;
-    private final StringRedisTemplate replicaPreferred;
     private final ObjectMapper objectMapper;
     private final Clock clock;
     /** 데이터 키의 수명. 무효화하지 않는 좋아요 수가 오래된 값일 수 있는 상한이기도 하다 (2.2, 5) */
@@ -51,39 +52,39 @@ public class RedisProductListCache implements ProductListCache {
 
     public RedisProductListCache(
         @Qualifier(ProductCacheRedisConfig.MASTER_TEMPLATE) StringRedisTemplate master,
-        @Qualifier(ProductCacheRedisConfig.REPLICA_PREFERRED_TEMPLATE) StringRedisTemplate replicaPreferred,
         ObjectMapper objectMapper,
         Clock clock,
         @Value("${product-list-cache.ttl-seconds:60}") long ttlSeconds
     ) {
         this.master = master;
-        this.replicaPreferred = replicaPreferred;
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.ttl = Duration.ofSeconds(ttlSeconds);
     }
 
-    /** 버전 읽기 → 데이터 읽기 → (miss) 원본 읽기 → 읽은 버전에 저장. 원본의 오류는 감싸지 않고 그대로 나간다 (4.1) */
+    /**
+     * 버전 · 데이터 읽기(스크립트 한 번) → (miss) 원본 읽기 → 읽은 버전에 저장. 원본의 오류는 감싸지 않고 그대로 나간다 (4.1).
+     * 버전을 읽은 뒤에 원본을 읽으므로 늦은 채움은 옛 버전 키에만 들어간다 (3.1)
+     */
     @Override
     public Page<ProductView> getFirstPage(Long brandId, ProductSort sort, Supplier<Page<ProductView>> loader) {
         String scope = scopeOf(brandId);
-        long version;
+        VersionedCacheScript.Result read;
         try {
-            version = currentVersion(scope);
+            read = VersionedCacheScript.read(master, versionKey(scope), dataKeyPrefix(scope), dataKeySuffix(sort), clock.millis());
         } catch (RuntimeException e) {
-            log.warn("상품 목록 캐시 버전을 읽지 못해 원본으로 우회함. scope={}", scope, e);
+            log.warn("상품 목록 캐시를 읽지 못해 원본으로 우회함. scope={}", scope, e);
             return loader.get();
         }
 
-        String key = dataKey(scope, version, sort);
-        try {
-            String cached = replicaPreferred.opsForValue().get(key);
-            if (cached != null) {
-                return toPage(objectMapper.readValue(cached, CachedPage.class));
+        String key = dataKey(scope, read.version(), sort);
+        if (read.data() != null) {
+            try {
+                return toPage(objectMapper.readValue(read.data(), CachedPage.class));
+            } catch (JsonProcessingException e) {
+                log.warn("상품 목록 캐시 값을 읽지 못해 원본으로 우회함. key={}", key, e);
+                return loader.get();
             }
-        } catch (RuntimeException | JsonProcessingException e) {
-            log.warn("상품 목록 캐시를 읽지 못해 원본으로 우회함. key={}", key, e);
-            return loader.get();
         }
 
         Page<ProductView> page = loader.get();
@@ -122,17 +123,6 @@ public class RedisProductListCache implements ProductListCache {
         }
     }
 
-    /** 처음 기동했거나 버전 키가 사라졌으면 현재 시각(ms)으로 만든다. 0 · 1 로 다시 세면 예전 데이터 키와 번호가 겹친다 (3.5) */
-    private long currentVersion(String scope) {
-        String key = versionKey(scope);
-        String version = master.opsForValue().get(key);
-        if (version != null) {
-            return Long.parseLong(version);
-        }
-        master.opsForValue().setIfAbsent(key, String.valueOf(clock.millis()));
-        return Long.parseLong(master.opsForValue().get(key));
-    }
-
     // commit 뒤에 불리므로 어떤 실패도 쓰기 결과로 새어 나가지 않게 한다
     private void increaseVersion(String scope) {
         String key = versionKey(scope);
@@ -158,7 +148,15 @@ public class RedisProductListCache implements ProductListCache {
     }
 
     static String dataKey(String scope, long version, ProductSort sort) {
-        return "product-list:v1:" + scope + ":ver=" + version + ":sort=" + sort.name();
+        return dataKeyPrefix(scope) + version + dataKeySuffix(sort);
+    }
+
+    private static String dataKeyPrefix(String scope) {
+        return "product-list:v1:" + scope + ":ver=";
+    }
+
+    private static String dataKeySuffix(ProductSort sort) {
+        return ":sort=" + sort.name();
     }
 
     private static CachedPage toCached(Page<ProductView> page) {

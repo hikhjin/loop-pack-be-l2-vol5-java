@@ -2,7 +2,7 @@
 
 상세 캐시를 Lua 읽기(왕복 1회)로 바꾼 뒤(`detail-cache-design.md` 3.1), 목록 첫 페이지 캐시도 같은 방식으로 바꿀지 판단하려고 쟀다. 목록은 값이 상세보다 커서, **데이터까지 master 가 보내는 부담**이 상세와 다르다는 점이 판단의 쟁점이다.
 
-- 실험 코드: `ProductListCacheLuaExperiment` (`RUN_EXPERIMENT=true`), 목록용 Lua 변형: `LuaProductListCache` (테스트 소스에만 있음, 상세와 같은 `VersionedCacheScript` 사용)
+- 실험 코드: `ProductListCacheLuaExperiment` (`RUN_EXPERIMENT=true`), 목록용 Lua 변형: `LuaProductListCache` (테스트 소스, 상세와 같은 `VersionedCacheScript` 사용). **전환 뒤 둘 다 지웠다.** 이 측정을 기록한 커밋에 남아 있다
 - 실행일: 2026-10-18, MySQL 8.0 · Redis 7.0 단일 노드 Testcontainers, **두 번 실행**
 - 데이터: `seed/week4-product-seed.sql` (상품 1만 개, 목록 측정과 같음)
 
@@ -67,7 +67,15 @@ hit 1건당 master 가 보내는 양(응답 데이터 기준, 프로토콜 오�
 - 트래픽 규모는 가정이 없다. 실서비스라면 목록 초당 hit 수와 Redis 서버의 네트워크 한도를 놓고 판단한다.
 - 키 하나에 몰리면(`all` 범위) 이 송출은 모두 master 한 대가 맡는다. 단일 스레드인 Redis 에서 큰 값을 보내는 일이 몰리면 다른 명령의 대기도 늘 수 있다(재지 않음).
 
-## 5. 한계
+## 5. 전환 결과
+
+이 측정을 근거로 목록 읽기도 스크립트 한 번으로 바꿨다(`cache-design.md` 4.1). 제품 코드(`RedisProductListCache`)는 실험 변형과 hit 경로의 Redis 호출이 같고, 장애 처리(스크립트 실패 · 역직렬화 실패 → DB 우회)를 그대로 유지한다.
+
+- 목록 · 상세 모두 master 에서만 읽게 되어 replica 우선 연결은 지웠다.
+- 4절의 master 송출 부담은 받아들이고 `cache-design.md` 8절 한계에 적었다.
+- 목록 hit 를 `ProductQueryExperiment` 로 다시 재지는 않았다. `product-query-cache.md` 의 hit 값은 전환 전 값으로 표시했다.
+
+## 6. 한계
 
 - 같은 PC 의 컨테이너라 왕복이 짧고, master · replica 가 같은 노드다. 운영에서는 C 의 추가 왕복이 더 길고(Lua 이득 증가), 동시에 master 송출 부담도 실제로 생긴다(Lua 대가 증가).
 - 한 스레드의 순차 요청이다. 동시 요청에서 master 가 큰 값을 보내는 부담은 재지 않았다.

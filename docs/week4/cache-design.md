@@ -101,11 +101,17 @@ Redis cache-aside 를 상품 목록 한 경로에 붙인다. 측정 근거는 `p
 ```
 ProductFacade.getProducts (트랜잭션 없음)
   1. 첫 페이지 · 기본 크기가 아니면 → DB
-  2. 범위 버전 읽기 (master)              ─ 실패하면 → DB, 캐시에 쓰지 않음
-  3. 데이터 키 읽기 (기본 연결)           ─ hit 이면 반환 / 실패하면 → DB, 캐시에 쓰지 않음
+  2. 스크립트 한 번으로 범위 버전과 그 버전의 데이터 키 읽기 (master)
+     ─ 버전 키가 없으면 스크립트 안에서 현재 시각으로 만든다 (3.5)
+     ─ 실패하면 → DB, 캐시에 쓰지 않음
+  3. 데이터가 있으면 반환 ─ 값을 읽을 수 없으면 → DB, 캐시에 쓰지 않음
   4. miss → DB 조회 (여기서 읽기 트랜잭션 시작)
   5. 2에서 읽은 버전의 데이터 키에 TTL 과 함께 저장 ─ 실패해도 결과는 반환
 ```
+
+- **처음에는 버전(master) → 데이터(replica 우선)를 따로 읽어 왕복 2회였다.** 상세 캐시를 만들며 버전 · 데이터를 스크립트 한 번(`VersionedCacheScript`)으로 읽는 방식을 채택했고(`detail-cache-design.md` 3.1), 목록도 같은 방식으로 바꿨다. 같은 컨텍스트에서 번갈아 잰 hit p50 이 약 33~35% 줄었다(`product-list-cache-lua.md`).
+  - 대가: 데이터(첫 페이지 약 3KB)까지 master 가 보낸다. 초당 hit 1만 건이면 master 송출이 약 30MB/s 늘어난다(어림). replica 로 읽기를 나누던 효과를 포기했다(8절).
+  - replica 우선 연결은 쓰는 곳이 없어 지웠다. 아래 두 문단은 전환 전 구조에서 버전과 데이터를 다른 연결로 읽던 근거이며, 버전을 master 에서 읽어야 하는 이유는 지금도 같다.
 
 - **버전 키는 master 에서 읽는다.** 기본 연결은 `REPLICA_PREFERRED` 다. 관리자 변경 → master `INCR` → 직후 조회가 아직 복제되지 않은 replica 에서 옛 버전을 읽으면 옛 페이지가 나가, 정상 순차 조회의 최신성이 깨진다.
 - **데이터 키는 기본 연결로 읽어도 된다.** 키에 버전이 있어 replica 에 아직 없으면 miss 일 뿐 옛 값을 돌려주지 않는다. 새 버전 키에는 `INCR` 이후(commit 이후)에 DB 를 읽은 결과만 들어간다.
@@ -135,7 +141,8 @@ TTL 60초는 가정한 값이다. 좋아요 수가 1분 늦는 것은 화면용�
 |---|---|
 | 캐시 포트 `ProductListCache` | `domain/product` (조회 결과 타입과 저장 약속을 domain 에 두는 2주차 4.5 와 같은 기준) |
 | Redis 구현 · 재처리 | `infrastructure/product` |
-| 캐시용 Redis 연결 (대기 한도 100ms, master 용 · 기본용) | commerce-api 설정 |
+| 캐시용 Redis 연결 (대기 한도 100ms, master 하나) | commerce-api 설정 |
+| 버전 · 데이터를 한 번에 읽는 스크립트 (목록 · 상세 공용) | `infrastructure/product/VersionedCacheScript` |
 | 캐시 확인 | `ProductFacade.getProducts` |
 | 무효화 호출 | `AdminProductFacade`, `OrderFacade`, `BrandFacade` |
 | 품절 판단 · 브랜드 식별자 | `Product.isSoldOut()`, `Product.getBrandId()` |
@@ -165,4 +172,6 @@ TTL 60초는 가정한 값이다. 좋아요 수가 1분 늦는 것은 화면용�
 - 버전이 오르면 그 범위의 정렬 3개가 동시에 miss 난다. 키가 적어 요청 합치기 같은 동시 miss 대책은 두지 않는다.
 - 재처리 기록은 메모리라 앱 재시작 때 사라진다(최대 TTL 동안 오래된 값).
 - "모든 쓰기 경로가 무효화를 부르는가" 테스트(`ProductListCacheInvalidationTest`)는 3.3 표의 경로를 기준으로 한다. 새 쓰기 경로가 생기면 표와 테스트에 함께 더해야 하며, 테스트가 빠뜨림을 스스로 찾지는 못한다.
+- **데이터까지 master 에서 읽는다.** 첫 페이지 값이 약 3KB 라, 초당 hit 수에 비례해 master 송출이 는다(1천 건에 약 3MB/s, 1만 건에 약 30MB/s, 어림). 특히 `all` 범위 키에 몰린다. 문제가 되면 데이터만 replica 에서 읽는 방식(왕복 2회)으로 되돌리거나 앱 메모리 캐시를 검토한다(`product-list-cache-lua.md` 4절).
+- **스크립트가 데이터 키를 KEYS 로 받지 않고 안에서 만든다.** Redis Cluster 로 옮기면 해시 태그(`{범위}`)를 붙이고 키를 KEYS 로 넘기도록 바꿔야 한다.
 - 버전 키가 메모리 정책으로 축출되면 3.5 로 다시 만들지만, 그 사이 데이터 키는 고아가 되어 TTL 로 정리된다.

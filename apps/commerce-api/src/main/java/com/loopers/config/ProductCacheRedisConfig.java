@@ -25,25 +25,19 @@ import java.time.Duration;
 @EnableScheduling
 public class ProductCacheRedisConfig {
 
-    /** 범위 버전을 읽고 쓰는 연결. 복제 지연으로 옛 버전을 읽지 않도록 master 에서 읽는다 (4.1) */
+    /**
+     * 목록 · 상세 캐시의 모든 읽기 · 쓰기 연결. 복제 지연으로 옛 버전을 읽지 않도록 버전을 master 에서 읽고,
+     * 데이터도 같은 스크립트 안에서 읽으므로 master 에서 읽는다 (cache-design.md 4.1)
+     */
     public static final String MASTER_TEMPLATE = "productCacheMasterRedisTemplate";
-    /** 데이터 키를 읽는 연결. 키에 버전이 있어 replica 에서 읽어도 옛 값을 돌려주지 않는다 (4.1) */
-    public static final String REPLICA_PREFERRED_TEMPLATE = "productCacheReplicaPreferredRedisTemplate";
 
     private static final String MASTER_CONNECTION = "productCacheMasterRedisConnection";
-    private static final String REPLICA_PREFERRED_CONNECTION = "productCacheReplicaPreferredRedisConnection";
     private static final Duration COMMAND_TIMEOUT = Duration.ofMillis(100);
 
     @Qualifier(MASTER_CONNECTION)
     @Bean
     public LettuceConnectionFactory productCacheMasterRedisConnection(RedisProperties properties) {
-        return connectionFactory(properties, ReadFrom.MASTER);
-    }
-
-    @Qualifier(REPLICA_PREFERRED_CONNECTION)
-    @Bean
-    public LettuceConnectionFactory productCacheReplicaPreferredRedisConnection(RedisProperties properties) {
-        return connectionFactory(properties, ReadFrom.REPLICA_PREFERRED);
+        return connectionFactory(properties);
     }
 
     @Qualifier(MASTER_TEMPLATE)
@@ -52,17 +46,9 @@ public class ProductCacheRedisConfig {
         return new StringRedisTemplate(factory);
     }
 
-    @Qualifier(REPLICA_PREFERRED_TEMPLATE)
-    @Bean
-    public StringRedisTemplate productCacheReplicaPreferredRedisTemplate(
-        @Qualifier(REPLICA_PREFERRED_CONNECTION) LettuceConnectionFactory factory
-    ) {
-        return new StringRedisTemplate(factory);
-    }
-
-    private static LettuceConnectionFactory connectionFactory(RedisProperties properties, ReadFrom readFrom) {
+    private static LettuceConnectionFactory connectionFactory(RedisProperties properties) {
         LettuceClientConfiguration clientConfig = LettuceClientConfiguration.builder()
-            .readFrom(readFrom)
+            .readFrom(ReadFrom.MASTER)
             .commandTimeout(COMMAND_TIMEOUT)
             .clientOptions(ClientOptions.builder()
                 .disconnectedBehavior(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS)
