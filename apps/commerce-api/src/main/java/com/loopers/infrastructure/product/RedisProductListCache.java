@@ -21,6 +21,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -40,6 +41,8 @@ public class RedisProductListCache implements ProductListCache {
     /** 버전 · 데이터 읽기와 저장 · 버전 올리기를 모두 master 에서 한다 (VersionedCacheScript) */
     private final StringRedisTemplate master;
     private final ObjectMapper objectMapper;
+    /** miss 뒤 원본 조회를 데이터 키마다 한 번으로 모은다 (stampede-design.md) */
+    private final CacheLoadCoordinator loadCoordinator;
     private final Clock clock;
     /** 데이터 키의 수명. 무효화하지 않는 좋아요 수가 오래된 값일 수 있는 상한이기도 하다 (2.2, 5) */
     private final Duration ttl;
@@ -53,18 +56,21 @@ public class RedisProductListCache implements ProductListCache {
     public RedisProductListCache(
         @Qualifier(ProductCacheRedisConfig.MASTER_TEMPLATE) StringRedisTemplate master,
         ObjectMapper objectMapper,
+        CacheLoadCoordinator loadCoordinator,
         Clock clock,
         @Value("${product-list-cache.ttl-seconds:60}") long ttlSeconds
     ) {
         this.master = master;
         this.objectMapper = objectMapper;
+        this.loadCoordinator = loadCoordinator;
         this.clock = clock;
         this.ttl = Duration.ofSeconds(ttlSeconds);
     }
 
     /**
      * 버전 · 데이터 읽기(스크립트 한 번) → (miss) 원본 읽기 → 읽은 버전에 저장. 원본의 오류는 감싸지 않고 그대로 나간다 (4.1).
-     * 버전을 읽은 뒤에 원본을 읽으므로 늦은 채움은 옛 버전 키에만 들어간다 (3.1)
+     * 버전을 읽은 뒤에 원본을 읽으므로 늦은 채움은 옛 버전 키에만 들어간다 (3.1).
+     * miss 뒤 원본 조회는 같은 데이터 키끼리 앱 안 · 서버 사이에서 한 번으로 모은다 (stampede-design.md 3)
      */
     @Override
     public Page<ProductView> getFirstPage(Long brandId, ProductSort sort, Supplier<Page<ProductView>> loader) {
@@ -87,13 +93,28 @@ public class RedisProductListCache implements ProductListCache {
             }
         }
 
-        Page<ProductView> page = loader.get();
+        return loadCoordinator.load(key, () -> readStored(key), loader, page -> store(key, page));
+    }
+
+    /** 다른 서버가 저장한 값. 읽을 수 없으면 예외로 알려 원본 조회로 넘긴다 */
+    private Optional<Page<ProductView>> readStored(String key) {
+        String stored = master.opsForValue().get(key);
+        if (stored == null) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(toPage(objectMapper.readValue(stored, CachedPage.class)));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("상품 목록 캐시 값을 읽지 못함. key=" + key, e);
+        }
+    }
+
+    private void store(String key, Page<ProductView> page) {
         try {
             master.opsForValue().set(key, objectMapper.writeValueAsString(toCached(page)), ttl);
         } catch (RuntimeException | JsonProcessingException e) {
             log.warn("상품 목록 캐시에 저장하지 못함. key={}", key, e);
         }
-        return page;
     }
 
     @Override
