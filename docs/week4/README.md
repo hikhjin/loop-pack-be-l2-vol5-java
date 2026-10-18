@@ -57,3 +57,4 @@
 | 13 | `product-list-cache-lua.md` | 목록도 Lua 읽기로 바꿀지 판단용 측정: hit p50 약 33~35% 감소, 값 약 3KB 라 master 송출 부담이 쟁점. 목록도 Lua 읽기로 전환 |
 | 14 | `cache-stampede.md` | 스템피드 측정: 무효화 직후 동시 요청 N 개가 거의 모두 원본으로 감 → 대책 뒤 원본 1번, N=100 p50 약 36~89ms → 약 9~11ms |
 | 15 | `stampede-design.md` | 스템피드 대책 설계: 앱 안 합치기 + Redis 락, 실패 · 한도 초과 시 각자 원본 조회 |
+| 16 | `cache-flow-and-decisions.md` | 회고용: 지금의 캐시 조회 · 무효화 · 스템피드 흐름 다이어그램과, 상세 캐시 · Lua · 스템피드 결정이 바뀐 순서와 주체 |
