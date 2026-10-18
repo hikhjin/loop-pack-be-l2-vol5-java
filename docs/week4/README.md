@@ -51,3 +51,6 @@
 | 7 | `cache-design.md` | 목록 첫 페이지 캐시 설계 |
 | 8 | `product-query-cache.md` | 캐시 측정: hit 약 1ms, Redis 무응답 때 요청마다 약 108~110ms 추가 |
 | 9 | `optimizer-plan.md` | 옵티마이저 트레이스로 본 조인 순서 변화: 행 수 추정이 맞아지자 4.5% 차이로 계획이 바뀜, 조기 종료는 비용에 없음 |
+| 10 | `redis-round-trip.md` | 상세 캐시 무효화 방식 판단용 Redis 왕복 측정: 왕복 1회 p50 약 0.23ms, 상품별 버전은 그 두 배, Lua 로 합치면 1회 |
+| 11 | `detail-cache-design.md` | 상품 상세 캐시 설계: 상품별 버전, "없음"도 캐시, 브랜드 · 좋아요는 무효화하지 않고 TTL 60초 허용 |
+| 12 | `product-detail-cache.md` | 상세 hit 측정(MockMvc): DB 만 약 3ms → C 약 1ms → C + Lua 약 0.6ms, C + Lua 채택 |
