@@ -55,3 +55,5 @@
 | 11 | `detail-cache-design.md` | 상품 상세 캐시 설계: 상품별 버전, "없음"도 캐시, 브랜드 · 좋아요는 무효화하지 않고 TTL 60초 허용 |
 | 12 | `product-detail-cache.md` | 상세 hit 측정(MockMvc): DB 만 약 3ms → C 약 1ms → C + Lua 약 0.6ms, C + Lua 채택 |
 | 13 | `product-list-cache-lua.md` | 목록도 Lua 읽기로 바꿀지 판단용 측정: hit p50 약 33~35% 감소, 값 약 3KB 라 master 송출 부담이 쟁점. 목록도 Lua 읽기로 전환 |
+| 14 | `cache-stampede.md` | 스템피드 측정: 무효화 직후 동시 요청 N 개가 거의 모두 원본으로 감 → 대책 뒤 원본 1번, N=100 p50 약 36~89ms → 약 9~11ms |
+| 15 | `stampede-design.md` | 스템피드 대책 설계: 앱 안 합치기 + Redis 락, 실패 · 한도 초과 시 각자 원본 조회 |
