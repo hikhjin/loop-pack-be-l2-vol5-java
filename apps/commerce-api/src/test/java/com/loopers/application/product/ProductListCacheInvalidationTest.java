@@ -5,9 +5,13 @@ import com.loopers.application.like.LikeFacade;
 import com.loopers.application.order.OrderDetailInfo;
 import com.loopers.application.order.OrderFacade;
 import com.loopers.application.order.OrderFacade.OrderRequestLine;
+import com.loopers.application.order.OrderPaymentFacade;
+import com.loopers.application.order.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.application.point.PointFacade;
+import com.loopers.domain.payment.Payment;
 import com.loopers.domain.product.ProductSort;
 import com.loopers.support.error.CoreException;
+import com.loopers.support.pg.TestPgServer;
 import com.loopers.utils.DatabaseCleanUp;
 import com.loopers.utils.RedisCleanUp;
 import jakarta.persistence.EntityManagerFactory;
@@ -53,6 +57,9 @@ class ProductListCacheInvalidationTest {
     private OrderFacade orderFacade;
 
     @Autowired
+    private OrderPaymentFacade orderPaymentFacade;
+
+    @Autowired
     private LikeFacade likeFacade;
 
     @Autowired
@@ -72,8 +79,11 @@ class ProductListCacheInvalidationTest {
     /** brandId 의 상품. 가격 1,000 · 2,000 · 3,000, 재고 모두 2 */
     private List<Long> productIds;
 
+    private final TestPgServer pg = TestPgServer.shared();
+
     @BeforeEach
     void setUp() {
+        pg.reset();
         brandId = brandFacade.createBrand("브랜드", "설명").id();
         otherBrandId = brandFacade.createBrand("다른 브랜드", null).id();
         productIds = List.of(createProduct(brandId, 1_000L), createProduct(brandId, 2_000L), createProduct(brandId, 3_000L));
@@ -114,9 +124,19 @@ class ProductListCacheInvalidationTest {
         return statistics().getPrepareStatementCount() > 0;
     }
 
+    /** 주문 확정 = PG 결제 시작. 재고는 이때 확보되므로 품절 여부도 이때 바뀜 (5주차 설계 4.1) */
     private Long confirmOrderOf(Long productId, int quantity) {
         Long orderId = orderFacade.createOrder(BUYER, List.of(new OrderRequestLine(productId, quantity))).id();
-        orderFacade.confirmOrder(BUYER, orderId);
+        orderPaymentFacade.confirm(BUYER, orderId, new ConfirmCommand("attempt-" + orderId, "TEST", "0000-0000-0000-0000"));
+        return orderId;
+    }
+
+    /** 테스트 PG 의 거래를 성공으로 끝내고 결과를 확인해 CONFIRMED 로 만듦 */
+    private Long paidOrderOf(Long productId, int quantity) {
+        Long orderId = confirmOrderOf(productId, quantity);
+        String transactionKey = pg.transactionsOf(Payment.providerOrderIdOf(orderId)).get(0).transactionKey();
+        pg.complete(transactionKey, "SUCCESS");
+        orderPaymentFacade.reconcile(BUYER, orderId);
         return orderId;
     }
 
@@ -229,16 +249,16 @@ class ProductListCacheInvalidationTest {
             assertNotInvalidated();
         }
 
-        @DisplayName("rollback 된 주문 확정 (차감으로 품절이 될 뻔했지만 잔액 부족)")
+        @DisplayName("rollback 된 주문 확정 (확보로 품절이 될 뻔했지만 다른 품목 재고 부족)")
         @Test
         void onRolledBackConfirm() {
             // arrange
-            Long poorBuyer = 2L;
-            pointFacade.charge(poorBuyer, 1L);
-            Long orderId = orderFacade.createOrder(poorBuyer, List.of(new OrderRequestLine(productIds.get(0), 2))).id();
+            Long orderId = orderFacade.createOrder(BUYER, List.of(
+                new OrderRequestLine(productIds.get(0), 2), new OrderRequestLine(productIds.get(1), 3))).id();
+            ConfirmCommand command = new ConfirmCommand("attempt-1", "TEST", "0000-0000-0000-0000");
 
             // act
-            assertThrows(CoreException.class, () -> orderFacade.confirmOrder(poorBuyer, orderId));
+            assertThrows(CoreException.class, () -> orderPaymentFacade.confirm(BUYER, orderId, command));
 
             // assert
             assertNotInvalidated();
@@ -249,7 +269,7 @@ class ProductListCacheInvalidationTest {
     @Test
     void reflectsPriceAndOrder_afterPriceUpdate_keepingPastOrderAmount() {
         // arrange
-        Long pastOrderId = confirmOrderOf(productIds.get(0), 1);
+        Long pastOrderId = paidOrderOf(productIds.get(0), 1);
         Page<ProductInfo> before = productFacade.getProducts(brandId, ProductSort.PRICE_ASC, FIRST_PAGE);
 
         // act
@@ -271,7 +291,7 @@ class ProductListCacheInvalidationTest {
     @Test
     void excludesDeletedBrandProducts_afterBrandDelete_keepingPastOrder() {
         // arrange
-        Long pastOrderId = confirmOrderOf(productIds.get(0), 1);
+        Long pastOrderId = paidOrderOf(productIds.get(0), 1);
 
         // act
         brandFacade.deleteBrand(brandId);

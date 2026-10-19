@@ -119,8 +119,33 @@ public final class TestPgServer implements AutoCloseable {
         }
     }
 
+    /**
+     * Spring 테스트가 함께 쓰는 서버. 설정값(base URL)이 테스트마다 같아야 Spring 컨텍스트 캐시가 유지되므로 한 번만 띄움.
+     * 테스트마다 reset 으로 거래 · 횟수 · 응답 방식을 비움. JVM 이 끝날 때 정리함
+     */
+    public static synchronized TestPgServer shared() {
+        if (shared == null) {
+            shared = start();
+            Runtime.getRuntime().addShutdownHook(new Thread(shared::close));
+        }
+        return shared;
+    }
+
+    private static TestPgServer shared;
+
     public String baseUrl() {
         return "http://127.0.0.1:" + server.getAddress().getPort();
+    }
+
+    /** 거래 저장소 · 받은 요청 · 횟수를 비우고 응답 방식을 정상(수락 · 그대로 조회)으로 되돌림 */
+    public void reset() {
+        transactions.clear();
+        requests.clear();
+        createCount.set(0);
+        lookupCount.set(0);
+        createBehavior = CreateBehavior.ACCEPT;
+        lookupBehavior = LookupBehavior.NORMAL;
+        delay = Duration.ZERO;
     }
 
     // 응답 방식

@@ -25,19 +25,40 @@ public class OrderService {
         return orderRepository.save(Order.draft(userId, lines, ZonedDateTime.now(clock)));
     }
 
-    /** 요청자 본인의 주문 중 지금 확정할 수 있는 주문. DRAFT 가 아니거나 만료되었으면 Order 가 거절함 (ORD-06~ORD-08) */
-    @Transactional(readOnly = true)
-    public Order getConfirmableOrder(Long userId, Long orderId) {
-        Order order = getMyOrder(userId, orderId);
-        order.validateConfirmable(ZonedDateTime.now(clock));
-        return order;
+    /** 요청자 본인의 주문을 배타 잠금으로 읽음. 타인의 주문은 없는 주문과 같음 (ORD-06, 5주차 설계 4.1) */
+    @Transactional
+    public Order getMyOrderForUpdate(Long userId, Long orderId) {
+        return orderRepository.findByIdAndUserIdForUpdate(orderId, userId)
+            .orElseThrow(() -> new CoreException(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
-    /** 결제액과 결제 시각을 남기고 CONFIRMED 로 바꿈 (ORD-12). 같은 트랜잭션에서 조회한 주문이라 변경 감지로 반영됨 */
+    /** 결과 적용(TX B)이 주문을 배타 잠금으로 읽음 (5주차 설계 4.3) */
     @Transactional
-    public Order confirm(Order order, long paymentAmount) {
-        order.confirm(paymentAmount, ZonedDateTime.now(clock));
-        return order;
+    public Order getOrderForUpdate(Long orderId) {
+        return orderRepository.findByIdForUpdate(orderId)
+            .orElseThrow(() -> new CoreException(OrderErrorCode.ORDER_NOT_FOUND));
+    }
+
+    /** DRAFT 가 아니거나 만료되었으면 Order 가 거절함. 상품을 다루기 전에 부름 (ORD-07, ORD-08) */
+    public void validateConfirmable(Order order) {
+        order.validateConfirmable(ZonedDateTime.now(clock));
+    }
+
+    /** PG 결과를 기다리는 상태로 바꿈. 같은 트랜잭션에서 조회한 주문이라 변경 감지로 반영됨 (5주차 설계 4.1) */
+    @Transactional
+    public void startPayment(Order order) {
+        order.startPayment(ZonedDateTime.now(clock));
+    }
+
+    /** 검증한 SUCCESS 를 반영함. 결제 시각은 내부에 반영한 시각임 (5주차 설계 2.1) */
+    @Transactional
+    public void confirmPaid(Order order, long paymentAmount) {
+        order.confirmPaid(paymentAmount, ZonedDateTime.now(clock));
+    }
+
+    @Transactional
+    public void failPayment(Order order) {
+        order.failPayment();
     }
 
     /** 요청자 본인의 주문만 조회한다. 타인의 주문은 없는 주문과 같다 (설계 6.1). */

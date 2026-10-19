@@ -153,8 +153,11 @@ public class Order extends BaseEntity {
         }
     }
 
-    /** 확정 가능한지 같은 검사를 거친 뒤 결제액과 결제 시각을 함께 남김 (ORD-12). 포인트 확정 경로이며 PG 확정으로 교체할 때 제거함 (5주차 설계 9) */
-    public void confirm(long paymentAmount, ZonedDateTime paidAt) {
+    /**
+     * 5주차 전 포인트로 확정한 주문을 재현함. 확정 가능한지 같은 검사를 거친 뒤 결제액과 결제 시각을 함께 남김 (ORD-12).
+     * 주문 결제는 PG 로 교체되어 운영 경로에서는 부르지 않으며, 과거 POINT 주문을 다루는 테스트가 씀 (5주차 설계 9)
+     */
+    public void confirmWithPoint(long paymentAmount, ZonedDateTime paidAt) {
         validateConfirmable(paidAt);
         this.status = OrderStatus.CONFIRMED;
         this.paymentMethod = PaymentMethod.POINT;

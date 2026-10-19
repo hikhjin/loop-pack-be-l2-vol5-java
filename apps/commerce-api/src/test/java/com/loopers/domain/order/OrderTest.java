@@ -114,7 +114,7 @@ class OrderTest {
             ZonedDateTime paidAt = CREATED_AT.plusMinutes(1);
 
             // act
-            order.confirm(7_000L, paidAt);
+            order.confirmWithPoint(7_000L, paidAt);
 
             // assert
             assertAll(
@@ -131,10 +131,10 @@ class OrderTest {
             // arrange
             Order order = draft(List.of(line(1L, 7_000L, 1)));
             ZonedDateTime paidAt = CREATED_AT.plusMinutes(1);
-            order.confirm(7_000L, paidAt);
+            order.confirmWithPoint(7_000L, paidAt);
 
             // act
-            CoreException result = assertThrows(CoreException.class, () -> order.confirm(1L, paidAt.plusDays(1)));
+            CoreException result = assertThrows(CoreException.class, () -> order.confirmWithPoint(1L, paidAt.plusDays(1)));
 
             // assert
             assertAll(
@@ -151,7 +151,7 @@ class OrderTest {
             Order order = draft(List.of(line(1L, 7_000L, 1)));
 
             // act
-            CoreException result = assertThrows(CoreException.class, () -> order.confirm(7_000L, CREATED_AT.plusMinutes(30)));
+            CoreException result = assertThrows(CoreException.class, () -> order.confirmWithPoint(7_000L, CREATED_AT.plusMinutes(30)));
 
             // assert
             assertAll(

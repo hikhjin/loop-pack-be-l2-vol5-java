@@ -441,12 +441,20 @@ commit ── 이후 품절이 풀린 상품의 캐시 무효화
 
 | 대상 | 변경 |
 |---|---|
-| `OrderFacade.confirmOrder`, `OrderConfirmRetrier` | 제거. `OrderPaymentFacade` 로 대체 |
-| `Order.confirm` | `startPayment` · `confirmPaid` · `failPayment` 로 대체 |
-| `OrderConfirmConcurrencyTest`, `OrderConfirmTransactionTest`, `PointOrderFlowE2ETest`, `OrderFacadeTest` 의 확정 부분 | 포인트 차감을 기대하는 검증은 제거. 재고 경쟁 · 원자성 같은 여전히 유효한 검증은 PG 확정 기준으로 새 테스트에서 다시 확인 |
-| `OrderV1ApiE2ETest` 의 확정 테스트 | 요청 본문 · 202/200 계약으로 갱신 |
+| `OrderFacade.confirmOrder`, `OrderConfirmRetrier` | 제거. `OrderPaymentFacade`(순서) + `OrderPaymentSteps`(TX A · TX B)로 대체 |
+| `Order.confirm` | `confirmWithPoint` 로 이름을 바꿔 남김. 5주차 전 POINT 확정 주문을 재현하는 용도이며 운영 경로에서는 부르지 않음. PG 결제는 `startPayment` · `confirmPaid` · `failPayment` |
+| `OrderService.getConfirmableOrder` · `confirm` | 잠금 조회(`getMyOrderForUpdate` · `getOrderForUpdate`)와 결제 상태 전이 메서드로 대체 |
+| `Point.pay` | 남김. 주문 결제에서 부르지 않을 뿐 포인트의 행동으로 유지 |
+| `OrderFacadeTest` 의 확정 부분 | `OrderPaymentFacadeTest`(fake 저장소 + PG 대역)로 옮김. 잔액 부족 · 0원 Point 행 검증은 계약이 바뀌어 제거 |
+| `OrderConfirmConcurrencyTest` | 재고 경쟁 · 같은 주문 동시 확정을 PG 기준으로 다시 씀. 포인트 경쟁 두 건은 제거 |
+| `OrderConfirmTransactionTest` | TX A · TX B 의 원자성과 외부 성공 뒤 내부 저장 실패를 확인하도록 다시 씀 |
+| `OrderV1ApiE2ETest`, `PointOrderFlowE2ETest` | 요청 본문 · 202/200 계약, reconcile 로 확정하는 흐름, 포인트 변화 0 으로 갱신. 잔액 부족 테스트는 제거 |
+| 캐시 무효화 테스트, `BrandDeleteTransactionTest`, `RedisProductListCacheFailureTest` | 확정 호출을 PG 결제 시작으로 바꾸고, 잔액 부족으로 만든 실패 장면은 다른 품목의 재고 부족으로 바꿈 |
+| `RetrierTest` | 주문 확정 재시도 부분만 제거 |
 | 포인트 충전 · 조회 테스트, 과거 주문 조회 테스트 | 유지 |
-| 2 · 3주차 문서 | ORD-11(잔액)과 3주차 4.3 · 4.4의 확정 흐름이 5주차로 대체됐다고 표시 |
+| 2 · 3주차 문서 | ORD-11(잔액)과 3주차 4.3 · 4.4의 확정 흐름이 5주차로 대체됐다고 표시 (6단계) |
+
+- **Spring 테스트의 PG 연결:** 모든 Spring 테스트가 공유 `TestPgServer` 하나를 씀. `META-INF/spring.factories` 의 `TestPgContextInitializer` 가 컨텍스트를 만들기 전에 base URL 을 넣어 설정값이 같게 유지되므로 컨텍스트 캐시가 깨지지 않음. 테스트마다 `reset()` 으로 거래 · 횟수 · 응답 방식을 비움.
 
 ## 10. 테스트
 
