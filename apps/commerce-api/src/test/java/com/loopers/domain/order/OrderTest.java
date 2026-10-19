@@ -119,6 +119,7 @@ class OrderTest {
             // assert
             assertAll(
                 () -> assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED),
+                () -> assertThat(order.getPaymentMethod()).isEqualTo(PaymentMethod.POINT),
                 () -> assertThat(order.getPaymentAmount()).isEqualTo(7_000L),
                 () -> assertThat(order.getPaidAt()).isEqualTo(paidAt)
             );
@@ -158,6 +159,123 @@ class OrderTest {
                 () -> assertThat(order.getStatus()).isEqualTo(OrderStatus.DRAFT),
                 () -> assertThat(order.getPaymentAmount()).isNull(),
                 () -> assertThat(order.getPaidAt()).isNull()
+            );
+        }
+    }
+
+    @DisplayName("PG 결제를 시작할 때, ")
+    @Nested
+    class StartPayment {
+        @DisplayName("DRAFT 면, PAYMENT_PENDING 이 되고 결제수단은 PG 이며 결제 정보는 아직 비어 있다. (5주차 설계 2.1)")
+        @Test
+        void startsPayment() {
+            // arrange
+            Order order = draft(List.of(line(1L, 7_000L, 1)));
+
+            // act
+            order.startPayment(CREATED_AT.plusMinutes(1));
+
+            // assert
+            assertAll(
+                () -> assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_PENDING),
+                () -> assertThat(order.getPaymentMethod()).isEqualTo(PaymentMethod.PG),
+                () -> assertThat(order.getPaymentAmount()).isNull(),
+                () -> assertThat(order.getPaidAt()).isNull()
+            );
+        }
+
+        @DisplayName("만료된 주문이면, ORDER_EXPIRED 예외가 발생하고 DRAFT 로 남는다. (ORD-08)")
+        @Test
+        void throwsExpired_andKeepsDraft() {
+            // arrange
+            Order order = draft(List.of(line(1L, 7_000L, 1)));
+
+            // act
+            CoreException result = assertThrows(CoreException.class, () -> order.startPayment(CREATED_AT.plusMinutes(30)));
+
+            // assert
+            assertAll(
+                () -> assertThat(result.getErrorCode()).isEqualTo(OrderErrorCode.ORDER_EXPIRED),
+                () -> assertThat(order.getStatus()).isEqualTo(OrderStatus.DRAFT),
+                () -> assertThat(order.getPaymentMethod()).isNull()
+            );
+        }
+
+        @DisplayName("이미 결제를 시작한 주문이면, ORDER_ALREADY_CONFIRMED 예외가 발생한다. (ORD-07)")
+        @Test
+        void throwsAlreadyConfirmed_whenAlreadyStarted() {
+            // arrange
+            Order order = draft(List.of(line(1L, 7_000L, 1)));
+            order.startPayment(CREATED_AT.plusMinutes(1));
+
+            // act
+            CoreException result = assertThrows(CoreException.class, () -> order.startPayment(CREATED_AT.plusMinutes(2)));
+
+            // assert
+            assertThat(result.getErrorCode()).isEqualTo(OrderErrorCode.ORDER_ALREADY_CONFIRMED);
+        }
+    }
+
+    @DisplayName("PG 결과를 반영할 때, ")
+    @Nested
+    class SettlePayment {
+        private Order pendingOrder() {
+            Order order = draft(List.of(line(1L, 7_000L, 1)));
+            order.startPayment(CREATED_AT.plusMinutes(1));
+            return order;
+        }
+
+        @DisplayName("SUCCESS 면, CONFIRMED 가 되고 결제액과 반영 시각을 남긴다. 만료 시각이 지나도 반영한다.")
+        @Test
+        void confirmsPaid_evenAfterExpiry() {
+            // arrange
+            Order order = pendingOrder();
+            ZonedDateTime paidAt = CREATED_AT.plusHours(2);
+
+            // act
+            order.confirmPaid(7_000L, paidAt);
+
+            // assert
+            assertAll(
+                () -> assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED),
+                () -> assertThat(order.getPaymentMethod()).isEqualTo(PaymentMethod.PG),
+                () -> assertThat(order.getPaymentAmount()).isEqualTo(7_000L),
+                () -> assertThat(order.getPaidAt()).isEqualTo(paidAt)
+            );
+        }
+
+        @DisplayName("확정 실패면, PAYMENT_FAILED 가 되고 결제 정보는 비어 있다.")
+        @Test
+        void failsPayment() {
+            // arrange
+            Order order = pendingOrder();
+
+            // act
+            order.failPayment();
+
+            // assert
+            assertAll(
+                () -> assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_FAILED),
+                () -> assertThat(order.getPaymentAmount()).isNull(),
+                () -> assertThat(order.getPaidAt()).isNull()
+            );
+        }
+
+        @DisplayName("결제 대기가 아닌 주문에 반영하면, 상태 오류로 막고 상태는 그대로다.")
+        @Test
+        void throwsIllegalState_whenNotPending() {
+            // arrange
+            Order draft = draft(List.of(line(1L, 7_000L, 1)));
+            Order confirmed = pendingOrder();
+            confirmed.confirmPaid(7_000L, CREATED_AT.plusMinutes(2));
+
+            // act & assert
+            assertAll(
+                () -> assertThrows(IllegalStateException.class, () -> draft.confirmPaid(7_000L, CREATED_AT.plusMinutes(2))),
+                () -> assertThrows(IllegalStateException.class, draft::failPayment),
+                () -> assertThrows(IllegalStateException.class, confirmed::failPayment),
+                () -> assertThat(draft.getStatus()).isEqualTo(OrderStatus.DRAFT),
+                () -> assertThat(confirmed.getStatus()).isEqualTo(OrderStatus.CONFIRMED)
             );
         }
     }

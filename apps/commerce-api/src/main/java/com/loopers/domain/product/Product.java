@@ -104,6 +104,21 @@ public class Product extends BaseEntity {
         updateStock(stock - quantity);
     }
 
+    /**
+     * 결제 확정 실패로 예약한 수량을 되돌림 (5주차 설계 6). 결제 시도의 반환 전이와 같은 TX 에서 한 번만 불림.
+     * 이미 확보한 주문을 마무리하는 것이라 삭제된 상품에도 반환하며, 삭제 여부는 바꾸지 않아 다시 노출되지 않음
+     */
+    public void release(int quantity) {
+        if (quantity <= 0) {
+            throw new CoreException(ProductErrorCode.INVALID_STOCK);
+        }
+        try {
+            updateStock(Math.addExact(stock, quantity));
+        } catch (ArithmeticException e) {
+            throw new CoreException(ProductErrorCode.INVALID_STOCK);
+        }
+    }
+
     // 재고를 바꾸는 모든 행동이 거치는 한 곳. "재고는 0 이상"(PRD-05)을 여기서만 지킨다.
     private void updateStock(int newStock) {
         if (newStock < 0) {

@@ -53,9 +53,14 @@ public class Order extends BaseEntity {
     @Column(name = "payment_amount")
     private Long paymentAmount;
 
-    /** updatedAt 은 이후 변경으로 덮이므로 결제 시각을 따로 둔다 (설계 5.5). */
+    /** updatedAt 은 이후 변경으로 덮이므로 결제 시각을 따로 둔다 (설계 5.5). PG 결제는 SUCCESS 를 내부에 반영한 시각임 (5주차 설계 2.1) */
     @Column(name = "paid_at")
     private ZonedDateTime paidAt;
+
+    /** DRAFT 에는 없음. 5주차 전 확정 주문은 POINT 임 (5주차 설계 2.1) */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method")
+    private PaymentMethod paymentMethod;
 
     /** 같은 주문의 확정이 겹치면 나중 commit 이 충돌하고, 재시도에서 CONFIRMED 를 읽어 기존 상태 오류로 끝남 (3주차 설계 4.1) */
     @Version
@@ -119,6 +124,10 @@ public class Order extends BaseEntity {
         return paidAt;
     }
 
+    public PaymentMethod getPaymentMethod() {
+        return paymentMethod;
+    }
+
     public ZonedDateTime getExpiresAt() {
         return expiresAt;
     }
@@ -144,12 +153,43 @@ public class Order extends BaseEntity {
         }
     }
 
-    /** 확정 가능한지 같은 검사를 거친 뒤 결제액과 결제 시각을 함께 남김 (ORD-12) */
+    /** 확정 가능한지 같은 검사를 거친 뒤 결제액과 결제 시각을 함께 남김 (ORD-12). 포인트 확정 경로이며 PG 확정으로 교체할 때 제거함 (5주차 설계 9) */
     public void confirm(long paymentAmount, ZonedDateTime paidAt) {
         validateConfirmable(paidAt);
         this.status = OrderStatus.CONFIRMED;
+        this.paymentMethod = PaymentMethod.POINT;
         this.paymentAmount = paymentAmount;
         this.paidAt = paidAt;
+    }
+
+    /** 확정 가능한지 같은 검사를 거친 뒤 PG 결과를 기다리는 상태로 바꿈. 이후로는 만료로 끝내지 않음 (5주차 설계 2.1, 4.1) */
+    public void startPayment(ZonedDateTime now) {
+        validateConfirmable(now);
+        this.status = OrderStatus.PAYMENT_PENDING;
+        this.paymentMethod = PaymentMethod.PG;
+    }
+
+    /**
+     * 검증한 SUCCESS 를 반영함. 결제 시도의 종결 전이와 같은 TX 에서만 불림 (5주차 설계 4.3).
+     * 결제 대기가 아닌데 불리면 결제 시도와 주문 상태가 어긋난 것이라 업무 오류가 아니라 상태 오류로 막음
+     */
+    public void confirmPaid(long paymentAmount, ZonedDateTime paidAt) {
+        requirePaymentPending();
+        this.status = OrderStatus.CONFIRMED;
+        this.paymentAmount = paymentAmount;
+        this.paidAt = paidAt;
+    }
+
+    /** 검증한 FAILED · 효과 0건 확정 거절을 반영함. 재고 반환은 호출자가 같은 TX 에서 한 번 수행함 (5주차 설계 4.3) */
+    public void failPayment() {
+        requirePaymentPending();
+        this.status = OrderStatus.PAYMENT_FAILED;
+    }
+
+    private void requirePaymentPending() {
+        if (status != OrderStatus.PAYMENT_PENDING) {
+            throw new IllegalStateException("결제 대기 주문이 아님: " + status);
+        }
     }
 
     private static void validateQuantity(int quantity) {
