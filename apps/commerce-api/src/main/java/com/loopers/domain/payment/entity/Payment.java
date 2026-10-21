@@ -118,7 +118,7 @@ public class Payment extends BaseEntity {
                 applyLateCreateToPending(result, now);
                 yield ReservationChange.NONE;
             }
-            // UNKNOWN 은 발송자의 E3 로만 들어오므로 생성 응답이 다시 오지 않음
+            // UNKNOWN 은 발송자가 결과 미확인을 받았을 때만 들어오므로 생성 응답이 다시 오지 않음
             case UNKNOWN, SUCCESS, FAILED, REJECTED, NOT_REQUIRED -> ReservationChange.NONE;
         };
     }
@@ -127,7 +127,7 @@ public class Payment extends BaseEntity {
         if (result instanceof PaymentLookupResult.Found found) {
             return applyLookup(found.transactions(), now);
         }
-        // L6: 마지막으로 아는 상태 유지
+        // 조회 불가: 마지막으로 아는 상태 유지
         return ReservationChange.NONE;
     }
 

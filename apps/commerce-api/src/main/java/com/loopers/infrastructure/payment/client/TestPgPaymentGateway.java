@@ -61,7 +61,7 @@ public class TestPgPaymentGateway implements PaymentGateway {
             .build();
     }
 
-    /** 연결 실패 · timeout · 해석 불가는 모두 E3 */
+    /** 연결 실패 · timeout · 해석 불가는 모두 결과 미확인 */
     @Override
     public PaymentCreateResult create(PaymentGatewayRequest request) {
         try {

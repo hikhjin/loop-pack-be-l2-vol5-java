@@ -87,7 +87,7 @@ public class OrderPaymentSteps {
             soldOutBrandIds, soldOutProductIds);
     }
 
-    /** TX B: 생성 응답(E1~E3) 적용 */
+    /** TX B: 생성 응답 적용 */
     @Transactional
     public Applied applyCreateResult(Long orderId, PaymentCreateResult result) {
         Order order = orderService.getOrderForUpdate(orderId);

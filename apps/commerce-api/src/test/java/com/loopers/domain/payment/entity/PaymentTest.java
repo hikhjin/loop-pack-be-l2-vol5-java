@@ -83,17 +83,17 @@ class PaymentTest {
         return new PaymentLookupResult.Found(List.of(transactions));
     }
 
-    /** L5 는 복수 거래 · 금액 불일치 · 주문 불일치로 나눠 확인함 */
+    /** 불일치는 복수 거래 · 금액 불일치 · 주문 불일치로 나눠 확인함 */
     private enum Lookup {
-        L1_PENDING(found(tx(ProviderTransactionStatus.PENDING))),
-        L2_SUCCESS(found(tx(ProviderTransactionStatus.SUCCESS))),
-        L3_FAILED(found(tx(ProviderTransactionStatus.FAILED))),
-        L4_NONE(found()),
-        L5_MULTIPLE(found(tx(ProviderTransactionStatus.SUCCESS),
+        ONE_PENDING(found(tx(ProviderTransactionStatus.PENDING))),
+        ONE_SUCCESS(found(tx(ProviderTransactionStatus.SUCCESS))),
+        ONE_FAILED(found(tx(ProviderTransactionStatus.FAILED))),
+        NO_TRANSACTION(found()),
+        MULTIPLE(found(tx(ProviderTransactionStatus.SUCCESS),
             new ProviderTransaction("TEST-TX-0043", PROVIDER_ORDER_ID, AMOUNT, ProviderTransactionStatus.SUCCESS))),
-        L5_AMOUNT(found(new ProviderTransaction(TX_KEY, PROVIDER_ORDER_ID, AMOUNT + 1, ProviderTransactionStatus.SUCCESS))),
-        L5_ORDER(found(new ProviderTransaction(TX_KEY, "LP-ORD-0000000043", AMOUNT, ProviderTransactionStatus.SUCCESS))),
-        L6_UNAVAILABLE(new PaymentLookupResult.Unavailable());
+        AMOUNT_MISMATCH(found(new ProviderTransaction(TX_KEY, PROVIDER_ORDER_ID, AMOUNT + 1, ProviderTransactionStatus.SUCCESS))),
+        ORDER_MISMATCH(found(new ProviderTransaction(TX_KEY, "LP-ORD-0000000043", AMOUNT, ProviderTransactionStatus.SUCCESS))),
+        UNAVAILABLE(new PaymentLookupResult.Unavailable());
 
         private final PaymentLookupResult result;
 
@@ -195,7 +195,7 @@ class PaymentTest {
     @DisplayName("REQUESTED 에서, ")
     @Nested
     class FromRequested {
-        @DisplayName("E1 생성 수락이면, PENDING 이 되고 거래 키를 저장한다.")
+        @DisplayName("생성 수락이면, PENDING 이 되고 거래 키를 저장한다.")
         @Test
         void becomesPending_onAccepted() {
             Payment payment = requested();
@@ -210,7 +210,7 @@ class PaymentTest {
             );
         }
 
-        @DisplayName("E2 효과 0건 확정 거절이면, REJECTED 로 종결하고 예약 반환을 요구하며 거래 키는 꾸미지 않는다.")
+        @DisplayName("효과 0건 확정 거절이면, REJECTED 로 종결하고 예약 반환을 요구하며 거래 키는 꾸미지 않는다.")
         @Test
         void becomesRejected_onRejectedWithoutEffect() {
             Payment payment = requested();
@@ -225,7 +225,7 @@ class PaymentTest {
             );
         }
 
-        @DisplayName("E3 결과 미확인이면, UNKNOWN 이 되고 예약을 유지한다.")
+        @DisplayName("결과 미확인이면, UNKNOWN 이 되고 예약을 유지한다.")
         @Test
         void becomesUnknown_onUnknown() {
             Payment payment = requested();
@@ -241,14 +241,14 @@ class PaymentTest {
 
         static Stream<Arguments> lookupRows() {
             return Stream.of(
-                row(Lookup.L1_PENDING, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, null),
-                row(Lookup.L2_SUCCESS, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.CONSUME, null),
-                row(Lookup.L3_FAILED, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.RELEASE, null),
-                row(Lookup.L4_NONE, PaymentStatus.REQUESTED, ReservationStatus.RESERVED, ReservationChange.NONE, null),
-                row(Lookup.L5_MULTIPLE, PaymentStatus.REQUESTED, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MULTIPLE_TRANSACTIONS),
-                row(Lookup.L5_AMOUNT, PaymentStatus.REQUESTED, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
-                row(Lookup.L5_ORDER, PaymentStatus.REQUESTED, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
-                row(Lookup.L6_UNAVAILABLE, PaymentStatus.REQUESTED, ReservationStatus.RESERVED, ReservationChange.NONE, null)
+                row(Lookup.ONE_PENDING, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, null),
+                row(Lookup.ONE_SUCCESS, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.CONSUME, null),
+                row(Lookup.ONE_FAILED, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.RELEASE, null),
+                row(Lookup.NO_TRANSACTION, PaymentStatus.REQUESTED, ReservationStatus.RESERVED, ReservationChange.NONE, null),
+                row(Lookup.MULTIPLE, PaymentStatus.REQUESTED, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MULTIPLE_TRANSACTIONS),
+                row(Lookup.AMOUNT_MISMATCH, PaymentStatus.REQUESTED, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
+                row(Lookup.ORDER_MISMATCH, PaymentStatus.REQUESTED, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
+                row(Lookup.UNAVAILABLE, PaymentStatus.REQUESTED, ReservationStatus.RESERVED, ReservationChange.NONE, null)
             );
         }
 
@@ -264,7 +264,7 @@ class PaymentTest {
         void storesTransactionKey_whenFoundByLookup() {
             Payment payment = requested();
 
-            payment.apply(Lookup.L1_PENDING.result, NOW);
+            payment.apply(Lookup.ONE_PENDING.result, NOW);
 
             assertThat(payment.getTransactionKey()).isEqualTo(TX_KEY);
         }
@@ -275,30 +275,30 @@ class PaymentTest {
     class FromUnknown {
         static Stream<Arguments> lookupRows() {
             return Stream.of(
-                row(Lookup.L1_PENDING, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, null),
-                row(Lookup.L2_SUCCESS, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.CONSUME, null),
-                row(Lookup.L3_FAILED, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.RELEASE, null),
-                row(Lookup.L4_NONE, PaymentStatus.UNKNOWN, ReservationStatus.RESERVED, ReservationChange.NONE, null),
-                row(Lookup.L5_MULTIPLE, PaymentStatus.UNKNOWN, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MULTIPLE_TRANSACTIONS),
-                row(Lookup.L5_AMOUNT, PaymentStatus.UNKNOWN, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
-                row(Lookup.L5_ORDER, PaymentStatus.UNKNOWN, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
-                row(Lookup.L6_UNAVAILABLE, PaymentStatus.UNKNOWN, ReservationStatus.RESERVED, ReservationChange.NONE, null)
+                row(Lookup.ONE_PENDING, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, null),
+                row(Lookup.ONE_SUCCESS, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.CONSUME, null),
+                row(Lookup.ONE_FAILED, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.RELEASE, null),
+                row(Lookup.NO_TRANSACTION, PaymentStatus.UNKNOWN, ReservationStatus.RESERVED, ReservationChange.NONE, null),
+                row(Lookup.MULTIPLE, PaymentStatus.UNKNOWN, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MULTIPLE_TRANSACTIONS),
+                row(Lookup.AMOUNT_MISMATCH, PaymentStatus.UNKNOWN, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
+                row(Lookup.ORDER_MISMATCH, PaymentStatus.UNKNOWN, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
+                row(Lookup.UNAVAILABLE, PaymentStatus.UNKNOWN, ReservationStatus.RESERVED, ReservationChange.NONE, null)
             );
         }
 
-        @DisplayName("조회 결과마다 전이표대로 바뀐다. L1 이면 아는 것이 늘었으므로 PENDING 으로 올린다.")
+        @DisplayName("조회 결과마다 전이표대로 바뀐다. 처리 중인 거래를 찾으면 아는 것이 늘었으므로 PENDING 으로 올린다.")
         @ParameterizedTest(name = "{0} → {1}, {2}, {3}, 충돌 {4}")
         @MethodSource("lookupRows")
         void followsTable(Lookup lookup, PaymentStatus status, ReservationStatus reservation, ReservationChange change, PaymentConflict conflict) {
             assertLookupRow(PaymentTest::unknown, lookup, status, reservation, change, conflict);
         }
 
-        @DisplayName("L1 로 PENDING 이 되면, 조회한 거래 키를 저장한다.")
+        @DisplayName("처리 중인 거래로 PENDING 이 되면, 조회한 거래 키를 저장한다.")
         @Test
         void storesTransactionKey_onPendingLookup() {
             Payment payment = unknown();
 
-            payment.apply(Lookup.L1_PENDING.result, NOW);
+            payment.apply(Lookup.ONE_PENDING.result, NOW);
 
             assertThat(payment.getTransactionKey()).isEqualTo(TX_KEY);
         }
@@ -309,18 +309,18 @@ class PaymentTest {
     class FromPending {
         static Stream<Arguments> lookupRows() {
             return Stream.of(
-                row(Lookup.L1_PENDING, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, null),
-                row(Lookup.L2_SUCCESS, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.CONSUME, null),
-                row(Lookup.L3_FAILED, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.RELEASE, null),
-                row(Lookup.L4_NONE, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISSING_KNOWN_TRANSACTION),
-                row(Lookup.L5_MULTIPLE, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MULTIPLE_TRANSACTIONS),
-                row(Lookup.L5_AMOUNT, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
-                row(Lookup.L5_ORDER, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
-                row(Lookup.L6_UNAVAILABLE, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, null)
+                row(Lookup.ONE_PENDING, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, null),
+                row(Lookup.ONE_SUCCESS, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.CONSUME, null),
+                row(Lookup.ONE_FAILED, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.RELEASE, null),
+                row(Lookup.NO_TRANSACTION, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISSING_KNOWN_TRANSACTION),
+                row(Lookup.MULTIPLE, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MULTIPLE_TRANSACTIONS),
+                row(Lookup.AMOUNT_MISMATCH, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
+                row(Lookup.ORDER_MISMATCH, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, PaymentConflict.MISMATCHED_TRANSACTION),
+                row(Lookup.UNAVAILABLE, PaymentStatus.PENDING, ReservationStatus.RESERVED, ReservationChange.NONE, null)
             );
         }
 
-        @DisplayName("조회 결과마다 전이표대로 바뀐다. L4 는 상태를 굳히지 않고 기록만 한다.")
+        @DisplayName("조회 결과마다 전이표대로 바뀐다. 거래 0건은 상태를 굳히지 않고 기록만 한다.")
         @ParameterizedTest(name = "{0} → {1}, {2}, {3}, 충돌 {4}")
         @MethodSource("lookupRows")
         void followsTable(Lookup lookup, PaymentStatus status, ReservationStatus reservation, ReservationChange change, PaymentConflict conflict) {
@@ -394,13 +394,13 @@ class PaymentTest {
     class FromTerminal {
         static Stream<Arguments> succeededRows() {
             return Stream.of(
-                row(Lookup.L1_PENDING, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, null),
-                row(Lookup.L2_SUCCESS, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, null),
-                row(Lookup.L3_FAILED, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L4_NONE, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, null),
-                row(Lookup.L5_MULTIPLE, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L5_AMOUNT, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L6_UNAVAILABLE, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, null)
+                row(Lookup.ONE_PENDING, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, null),
+                row(Lookup.ONE_SUCCESS, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, null),
+                row(Lookup.ONE_FAILED, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.NO_TRANSACTION, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, null),
+                row(Lookup.MULTIPLE, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.AMOUNT_MISMATCH, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.UNAVAILABLE, PaymentStatus.SUCCESS, ReservationStatus.CONSUMED, ReservationChange.NONE, null)
             );
         }
 
@@ -413,13 +413,13 @@ class PaymentTest {
 
         static Stream<Arguments> failedRows() {
             return Stream.of(
-                row(Lookup.L1_PENDING, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, null),
-                row(Lookup.L2_SUCCESS, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L3_FAILED, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, null),
-                row(Lookup.L4_NONE, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, null),
-                row(Lookup.L5_MULTIPLE, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L5_ORDER, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L6_UNAVAILABLE, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, null)
+                row(Lookup.ONE_PENDING, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, null),
+                row(Lookup.ONE_SUCCESS, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.ONE_FAILED, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, null),
+                row(Lookup.NO_TRANSACTION, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, null),
+                row(Lookup.MULTIPLE, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.ORDER_MISMATCH, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.UNAVAILABLE, PaymentStatus.FAILED, ReservationStatus.RELEASED, ReservationChange.NONE, null)
             );
         }
 
@@ -432,12 +432,12 @@ class PaymentTest {
 
         static Stream<Arguments> rejectedRows() {
             return Stream.of(
-                row(Lookup.L1_PENDING, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L2_SUCCESS, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L3_FAILED, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L4_NONE, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, null),
-                row(Lookup.L5_MULTIPLE, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L6_UNAVAILABLE, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, null)
+                row(Lookup.ONE_PENDING, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.ONE_SUCCESS, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.ONE_FAILED, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.NO_TRANSACTION, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, null),
+                row(Lookup.MULTIPLE, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.UNAVAILABLE, PaymentStatus.REJECTED, ReservationStatus.RELEASED, ReservationChange.NONE, null)
             );
         }
 
@@ -450,12 +450,12 @@ class PaymentTest {
 
         static Stream<Arguments> notRequiredRows() {
             return Stream.of(
-                row(Lookup.L1_PENDING, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L2_SUCCESS, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L3_FAILED, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L4_NONE, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, null),
-                row(Lookup.L5_MULTIPLE, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
-                row(Lookup.L6_UNAVAILABLE, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, null)
+                row(Lookup.ONE_PENDING, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.ONE_SUCCESS, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.ONE_FAILED, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.NO_TRANSACTION, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, null),
+                row(Lookup.MULTIPLE, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.UNAVAILABLE, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, null)
             );
         }
 
@@ -475,7 +475,7 @@ class PaymentTest {
             );
         }
 
-        @DisplayName("늦게 도착한 생성 응답(E1~E3)은 상태 · 예약 · 충돌 기록을 바꾸지 않는다.")
+        @DisplayName("늦게 도착한 생성 응답은 상태 · 예약 · 충돌 기록을 바꾸지 않는다.")
         @ParameterizedTest(name = "{0}")
         @MethodSource("terminalPayments")
         void ignoresLateCreateResults(String name, Supplier<Payment> given) {
@@ -506,8 +506,8 @@ class PaymentTest {
         Payment failure = pending();
         Payment rejection = requested();
 
-        List<ReservationChange> successResults = repeat(3, () -> success.apply(Lookup.L2_SUCCESS.result, NOW));
-        List<ReservationChange> failureResults = repeat(3, () -> failure.apply(Lookup.L3_FAILED.result, NOW));
+        List<ReservationChange> successResults = repeat(3, () -> success.apply(Lookup.ONE_SUCCESS.result, NOW));
+        List<ReservationChange> failureResults = repeat(3, () -> failure.apply(Lookup.ONE_FAILED.result, NOW));
         List<ReservationChange> rejectionResults = repeat(3, () -> rejection.apply(new PaymentCreateResult.RejectedWithoutEffect(), NOW));
 
         assertAll(
@@ -522,8 +522,8 @@ class PaymentTest {
     void neverSettles_whileMultipleTransactionsRemain() {
         Payment payment = pending();
 
-        payment.apply(Lookup.L5_MULTIPLE.result, NOW);
-        ReservationChange result = payment.apply(Lookup.L5_MULTIPLE.result, NOW.plusMinutes(1));
+        payment.apply(Lookup.MULTIPLE.result, NOW);
+        ReservationChange result = payment.apply(Lookup.MULTIPLE.result, NOW.plusMinutes(1));
 
         assertAll(
             () -> assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING),
@@ -537,9 +537,9 @@ class PaymentTest {
     @Test
     void settlesAfterTransientAnomaly() {
         Payment payment = pending();
-        payment.apply(Lookup.L4_NONE.result, NOW);
+        payment.apply(Lookup.NO_TRANSACTION.result, NOW);
 
-        ReservationChange result = payment.apply(Lookup.L2_SUCCESS.result, NOW);
+        ReservationChange result = payment.apply(Lookup.ONE_SUCCESS.result, NOW);
 
         assertAll(
             () -> assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SUCCESS),

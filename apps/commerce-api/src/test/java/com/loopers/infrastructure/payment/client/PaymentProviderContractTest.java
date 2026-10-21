@@ -92,7 +92,7 @@ class PaymentProviderContractTest {
     @DisplayName("생성 응답이, ")
     @Nested
     class CreateResponse {
-        @DisplayName("202 + PENDING + 같은 주문 · 금액이면, 거래 키와 함께 생성 수락(E1)이다.")
+        @DisplayName("202 + PENDING + 같은 주문 · 금액이면, 거래 키와 함께 생성 수락이다.")
         @Test
         void mapsAccepted() {
             // act
@@ -106,7 +106,7 @@ class PaymentProviderContractTest {
             );
         }
 
-        @DisplayName("계약대로 422 확정 거절이면, 효과 0건 확정 거절(E2)이고 거래는 0건이다.")
+        @DisplayName("계약대로 422 확정 거절이면, 효과 0건 확정 거절이고 거래는 0건이다.")
         @Test
         void mapsRejectedWithoutEffect() {
             // arrange
@@ -145,7 +145,7 @@ class PaymentProviderContractTest {
             );
         }
 
-        @DisplayName("계약과 정확히 맞지 않으면, 효과 0건의 증거로 보지 않고 결과 미확인(E3)이다.")
+        @DisplayName("계약과 정확히 맞지 않으면, 효과 0건의 증거로 보지 않고 결과 미확인이다.")
         @ParameterizedTest(name = "{0}")
         @MethodSource("unknownResponses")
         void mapsUnknown(String name, int status, String body) {
@@ -162,7 +162,7 @@ class PaymentProviderContractTest {
             );
         }
 
-        @DisplayName("거래를 만든 뒤 응답만 끊기면, 결과 미확인(E3)이고 생성 요청은 다시 보내지 않는다. (숨은 재시도 없음)")
+        @DisplayName("거래를 만든 뒤 응답만 끊기면, 결과 미확인이고 생성 요청은 다시 보내지 않는다. (숨은 재시도 없음)")
         @Test
         void mapsDroppedResponseToUnknown_withoutHiddenRetry() {
             // arrange
@@ -179,7 +179,7 @@ class PaymentProviderContractTest {
             );
         }
 
-        @DisplayName("응답 대기 한도를 넘기면, 한도 근처에서 결과 미확인(E3)으로 끝나고 생성 요청은 한 번이다.")
+        @DisplayName("응답 대기 한도를 넘기면, 한도 근처에서 결과 미확인으로 끝나고 생성 요청은 한 번이다.")
         @Test
         void mapsTimeoutToUnknown() {
             // arrange
@@ -199,7 +199,7 @@ class PaymentProviderContractTest {
             );
         }
 
-        @DisplayName("PG 에 연결할 수 없으면, 결과 미확인(E3)이다.")
+        @DisplayName("PG 에 연결할 수 없으면, 결과 미확인이다.")
         @Test
         void mapsConnectionFailureToUnknown() {
             // arrange
@@ -279,7 +279,7 @@ class PaymentProviderContractTest {
             );
         }
 
-        @DisplayName("200 배열이 아니거나 거래 형식이 계약과 다르면, 조회 불가(L6)다.")
+        @DisplayName("200 배열이 아니거나 거래 형식이 계약과 다르면, 조회 불가다.")
         @ParameterizedTest(name = "{0}")
         @MethodSource("unavailableResponses")
         void mapsUnavailable(String name, int status, String body) {
@@ -293,7 +293,7 @@ class PaymentProviderContractTest {
             assertThat(result).isInstanceOf(PaymentLookupResult.Unavailable.class);
         }
 
-        @DisplayName("응답 대기 한도를 넘기면, 한도 근처에서 조회 불가(L6)로 끝난다.")
+        @DisplayName("응답 대기 한도를 넘기면, 한도 근처에서 조회 불가로 끝난다.")
         @Test
         void mapsTimeoutToUnavailable() {
             // arrange
@@ -312,7 +312,7 @@ class PaymentProviderContractTest {
             );
         }
 
-        @DisplayName("PG 에 연결할 수 없으면, 조회 불가(L6)다.")
+        @DisplayName("PG 에 연결할 수 없으면, 조회 불가다.")
         @Test
         void mapsConnectionFailureToUnavailable() {
             // arrange
