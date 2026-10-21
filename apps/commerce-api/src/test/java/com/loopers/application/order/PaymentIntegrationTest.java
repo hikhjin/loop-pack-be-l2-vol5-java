@@ -38,11 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/**
- * PG 결제의 장면을 실제 Facade · MySQL · 테스트 PG HTTP 로 확인함 (5주차 설계 10).
- * 장면마다 PG 응답 방식을 고정하고, 외부 거래 수 · create 수신 횟수와 DB 의 주문 · 결제 시도 · 가용 재고 · 포인트를 함께 비교함.
- * 모든 작업이 끝난 뒤 새 트랜잭션에서 DB 를 다시 읽음
- */
+/** 5주차 설계 10 의 장면. PG 응답 방식을 고정하고 외부 거래 수 · create 횟수와 DB 상태를 함께 비교함 */
 @SpringBootTest
 class PaymentIntegrationTest {
 
@@ -123,7 +119,6 @@ class PaymentIntegrationTest {
         return transactions.get(0).transactionKey();
     }
 
-    // 새 트랜잭션에서 DB 를 다시 읽음
 
     private int stock() {
         return ((Number) query("select stock from product where id = " + product.getId())).intValue();
@@ -380,7 +375,7 @@ class PaymentIntegrationTest {
     @DisplayName("발송 기록 뒤 프로세스가 멈췄다가 다시 뜨면, ")
     @Nested
     class Restart {
-        /** 같은 DB · 같은 테스트 PG 에 새 adapter · Facade 를 만들어 재시작을 흉내 냄. 메모리 상태에 기대지 않음을 확인함 */
+        /** 같은 DB · 테스트 PG 에 새 adapter · Facade 를 만들어 재시작을 흉내 냄 */
         private OrderPaymentFacade restartedFacade() {
             TestPgPaymentGateway gateway = new TestPgPaymentGateway(new TestPgProperties(pg.baseUrl(),
                 "http://127.0.0.1:8080/api/v1/payments/callback", "135135", Duration.ofSeconds(1), Duration.ofSeconds(1), Duration.ofSeconds(1)),

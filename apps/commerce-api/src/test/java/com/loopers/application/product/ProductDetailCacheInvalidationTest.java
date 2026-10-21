@@ -114,7 +114,7 @@ class ProductDetailCacheInvalidationTest {
         return statistics().getPrepareStatementCount() > 0;
     }
 
-    /** 주문 확정 = PG 결제 시작. 재고는 이때 확보되므로 품절 여부도 이때 바뀜 (5주차 설계 4.1) */
+    /** 재고는 결제 시작 때 확보되므로 품절 여부도 이때 바뀜 */
     private void confirmOrderOf(Long id, int quantity) {
         Long orderId = orderFacade.createOrder(BUYER, List.of(new OrderRequestLine(id, quantity))).id();
         orderPaymentFacade.confirm(BUYER, orderId, new ConfirmCommand("attempt-" + orderId, "TEST", "0000-0000-0000-0000"));

@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** 주문 애그리거트의 저장 · 조회 · 시각 결정. 상품 · 결제와의 협력은 OrderFacadeTest · OrderPaymentFacadeTest 에서 확인함 (설계 4.4) */
+/** 주문 애그리거트의 저장 · 조회 · 시각 결정. 협력은 OrderFacadeTest · OrderPaymentFacadeTest 에서 확인함 */
 class OrderServiceTest {
 
     private static final Long USER_ID = 1L;

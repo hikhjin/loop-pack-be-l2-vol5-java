@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** 5주차 설계 2.2 전이표의 모든 칸. 상태 × 사건마다 다음 상태 · 예약 상태 · 후속 효과 · 충돌 기록을 확인함 */
+/** 5주차 설계 2.2 전이표의 모든 칸 */
 class PaymentTest {
 
     private static final Long ORDER_ID = 42L;
@@ -27,8 +27,6 @@ class PaymentTest {
     private static final long AMOUNT = 7_000L;
     private static final String TX_KEY = "TEST-TX-0042";
     private static final ZonedDateTime NOW = ZonedDateTime.parse("2026-10-19T10:00:00+09:00[Asia/Seoul]");
-
-    // 상태별 시도
 
     private static Payment requested() {
         return Payment.request(ORDER_ID, "attempt-1", AMOUNT);
@@ -68,8 +66,6 @@ class PaymentTest {
         return Payment.notRequired(ORDER_ID, "attempt-1");
     }
 
-    // 사건
-
     private static ProviderTransaction tx(ProviderTransactionStatus status) {
         return new ProviderTransaction(TX_KEY, PROVIDER_ORDER_ID, AMOUNT, status);
     }
@@ -78,7 +74,7 @@ class PaymentTest {
         return new PaymentLookupResult.Found(List.of(transactions));
     }
 
-    /** 조회 사건 L1~L6. L5 는 복수 거래 · 금액 불일치 · 주문 불일치 · 다른 거래 키로 나눠 확인함 */
+    /** L5 는 복수 거래 · 금액 불일치 · 주문 불일치로 나눠 확인함 */
     private enum Lookup {
         L1_PENDING(found(tx(ProviderTransactionStatus.PENDING))),
         L2_SUCCESS(found(tx(ProviderTransactionStatus.SUCCESS))),

@@ -52,17 +52,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/**
- * PG 결제 유스케이스의 순서 · 검사 · 후속 효과를 fake 저장 구현과 PG 대역으로 DB · HTTP 없이 확인함 (5주차 설계 4).
- * fake 에는 트랜잭션이 없어 실패 뒤 rollback 을 볼 수 없으므로, DB 기준의 rollback 은 OrderConfirmTransactionTest 와 E2E 가 확인함
- */
+/** fake 와 PG 대역으로 DB · HTTP 없이 확인함. fake 에는 rollback 이 없어 DB 기준 rollback 은 OrderConfirmTransactionTest 가 확인함 */
 class OrderPaymentFacadeTest {
 
     private static final Long USER_ID = 1L;
     private static final Long OTHER_USER_ID = 2L;
     private static final ZonedDateTime CREATED_AT = ZonedDateTime.parse("2026-10-06T10:00:00+09:00[Asia/Seoul]");
 
-    /** 주문 생성 뒤 시간을 흘려 만료를 확인하기 위한 시계 */
     private static class MutableClock extends Clock {
         private Instant instant;
         private final ZoneId zone;
@@ -422,7 +418,6 @@ class OrderPaymentFacadeTest {
             );
         }
 
-        // 앞 품목의 확보는 트랜잭션 롤백이 되돌리므로, DB 기준의 "재고 그대로"는 E2E 에서 확인함
         @DisplayName("두 번째 품목의 재고가 부족하면, 그 상품을 알리는 OUT_OF_STOCK 예외가 발생하고 PG 를 부르지 않는다. (ORD-10)")
         @Test
         void throwsOutOfStock_withFailedProduct_withoutCallingPg() {

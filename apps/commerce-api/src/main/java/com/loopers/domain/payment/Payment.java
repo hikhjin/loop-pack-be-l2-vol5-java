@@ -13,9 +13,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 /**
- * 주문 하나의 PG 결제 시도. 외부 결과를 얼마나 아는가(status)와 확보 재고의 처리(reservationStatus)를 함께 지킴 (5주차 설계 2.2, 2.3).
- * 상태는 전이표대로만 바뀌고, create 를 다시 보내게 하는 전이는 없음 (D-60).
- * 주문 행 잠금 아래에서만 바뀌므로 @Version 을 두지 않음 (D-63). 카드 정보는 보관하지 않음
+ * 주문 하나의 결제 시도. 상태는 5주차 설계 2.2 전이표대로만 바뀌며 create 재발송 전이는 없음 (D-60).
  */
 @Entity
 @Table(name = "payment", uniqueConstraints = {
@@ -37,7 +35,7 @@ public class Payment extends BaseEntity {
     @Column(name = "provider_order_id", nullable = false)
     private String providerOrderId;
 
-    /** 생성 응답이나 조회로 알게 되면 기록함. REQUESTED · UNKNOWN · REJECTED 에는 없음 */
+    /** REQUESTED · UNKNOWN · REJECTED · NOT_REQUIRED 에는 없음 */
     @Column(name = "transaction_key")
     private String transactionKey;
 
@@ -52,7 +50,7 @@ public class Payment extends BaseEntity {
     @Column(name = "reservation_status", nullable = false)
     private ReservationStatus reservationStatus;
 
-    /** 마지막으로 기록한 충돌 · 이상. 결제 상태와 따로 남김 (D-65) */
+    /** 결제 상태와 따로 남기는 마지막 충돌 기록 (D-65) */
     @Enumerated(EnumType.STRING)
     @Column(name = "conflict_reason")
     private PaymentConflict conflictReason;
@@ -71,7 +69,7 @@ public class Payment extends BaseEntity {
         this.reservationStatus = ReservationStatus.RESERVED;
     }
 
-    /** 발송 권한을 기록한 시도. 재고는 같은 TX 에서 이미 확보한 상태로 만듦 (5주차 설계 4.1) */
+    /** 재고는 같은 TX 에서 이미 확보한 상태 */
     public static Payment request(Long orderId, String attemptKey, long amount) {
         validateAttemptKey(attemptKey);
         if (amount < 0) {
@@ -89,14 +87,14 @@ public class Payment extends BaseEntity {
         return payment;
     }
 
-    /** 비었거나 64자를 넘으면 거절함. 주문을 다루기 전에 부를 수 있도록 따로 둠 (5주차 설계 7) */
+    /** 주문을 다루기 전에 부를 수 있도록 따로 둠 */
     public static void validateAttemptKey(String attemptKey) {
         if (attemptKey == null || attemptKey.isBlank() || attemptKey.length() > MAX_ATTEMPT_KEY_LENGTH) {
             throw new CoreException(PaymentErrorCode.INVALID_PAYMENT_REQUEST);
         }
     }
 
-    /** PG 요청과 주문 단위 조회에 같은 값을 씀. 내부 주문 42 는 LP-ORD-0000000042 (5주차 설계 2.2) */
+    /** 주문 42 → LP-ORD-0000000042. PG 요청과 조회에 같은 값을 씀 */
     public static String providerOrderIdOf(Long orderId) {
         return String.format(PROVIDER_ORDER_ID_FORMAT, orderId);
     }
@@ -105,7 +103,6 @@ public class Payment extends BaseEntity {
         return this.attemptKey.equals(attemptKey);
     }
 
-    /** 발송자가 받은 생성 응답(E1~E3)을 전이표대로 적용함 (5주차 설계 2.2) */
     public ReservationChange apply(PaymentCreateResult result, ZonedDateTime now) {
         return switch (status) {
             case REQUESTED -> applyCreateToRequested(result);
@@ -113,12 +110,11 @@ public class Payment extends BaseEntity {
                 applyLateCreateToPending(result, now);
                 yield ReservationChange.NONE;
             }
-            // UNKNOWN 은 발송자 자신의 E3 로만 들어오므로 생성 응답이 다시 오지 않음. 종결 뒤 늦은 응답은 효과 없음
+            // UNKNOWN 은 발송자의 E3 로만 들어오므로 생성 응답이 다시 오지 않음
             case UNKNOWN, SUCCESS, FAILED, REJECTED, NOT_REQUIRED -> ReservationChange.NONE;
         };
     }
 
-    /** 주문 단위 조회 결과를 저장값과 비교해 L1~L6 으로 판정한 뒤 전이표대로 적용함 (5주차 설계 2.2, 3.3) */
     public ReservationChange apply(PaymentLookupResult result, ZonedDateTime now) {
         if (result instanceof PaymentLookupResult.Found found) {
             return applyLookup(found.transactions(), now);
@@ -192,7 +188,7 @@ public class Payment extends BaseEntity {
             case PENDING -> ReservationChange.NONE;
             case SUCCESS -> settle(PaymentStatus.SUCCESS);
             case FAILED -> settle(PaymentStatus.FAILED);
-            // 키를 아는데 0건인 모순. 실제 PG 라면 조회 반영 지연일 수 있어 상태를 굳히지 않음
+            // 조회 반영 지연일 수 있어 상태를 굳히지 않고 기록만 함
             case NONE -> {
                 recordConflict(PaymentConflict.MISSING_KNOWN_TRANSACTION, now);
                 yield ReservationChange.NONE;
@@ -212,7 +208,7 @@ public class Payment extends BaseEntity {
         return ReservationChange.NONE;
     }
 
-    /** 결제 종결과 예약 전이를 한 곳에서만 일으켜, 예약 상태가 결제 상태와 따로 바뀌지 않게 함 (D-59) */
+    /** 예약 상태가 결제 상태와 따로 바뀌지 않도록 한 곳에서만 전이함 (D-59) */
     private ReservationChange settle(PaymentStatus terminalStatus) {
         this.status = terminalStatus;
         if (terminalStatus == PaymentStatus.SUCCESS) {
@@ -228,7 +224,7 @@ public class Payment extends BaseEntity {
         this.conflictedAt = now;
     }
 
-    /** 저장된 주문 · 금액 · 거래 키와 비교해 조회 결과를 L1~L5 로 나눔. 2건 이상이면 첫 거래를 고르지 않음 (5주차 설계 3.3) */
+    /** 2건 이상이면 첫 거래를 고르지 않음 */
     private LookupEvent classify(List<ProviderTransaction> transactions) {
         if (transactions.isEmpty()) {
             return LookupEvent.NONE;

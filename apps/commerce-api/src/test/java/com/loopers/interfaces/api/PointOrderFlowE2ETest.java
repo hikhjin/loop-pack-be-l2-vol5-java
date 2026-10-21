@@ -31,8 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * 대표 흐름(설계 5.1)을 실제 API 로 이어서 확인한다.
- * 관리자가 브랜드 · 상품 · 재고를 준비하고, 고객이 충전 → 여러 품목 주문 → 확정(PG 결제 시작) → 결과 확인 → 잔액 · 주문을 조회한다.
- * 주문 결제는 PG 로 바뀌어 포인트 잔액은 결제로 줄지 않는다 (5주차 설계 1)
+ * 관리자가 브랜드 · 상품 · 재고를 준비하고, 고객이 충전 → 여러 품목 주문 → 확정(PG 결제 시작) → 결과 확인 → 잔액 · 주문을 조회함.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -117,7 +116,7 @@ class PointOrderFlowE2ETest {
         mvc.perform(asCustomer(get("/api/v1/points"), customer))
             .andExpect(jsonPath("$.data.balance").value(10_000));
 
-        // 고객: 확정 = PG 결제 시작. 재고를 확보하고 결과를 기다린다
+        // 고객: 확정 = PG 결제 시작
         perform(asCustomer(post("/api/v1/orders/" + orderId + "/confirm"), customer),
             "{\"paymentAttemptKey\": \"attempt-1\", \"cardType\": \"TEST\", \"cardNo\": \"0000-0000-0000-0000\"}")
             .andExpect(status().isAccepted())
@@ -125,7 +124,7 @@ class PointOrderFlowE2ETest {
             .andExpect(jsonPath("$.data.totalAmount").value(7_000))
             .andExpect(jsonPath("$.data.paymentAmount").doesNotExist());
 
-        // 테스트 PG: 거래가 성공으로 끝남. 고객: 결과 확인
+        // 테스트 PG 거래 성공 → 고객: 결과 확인
         String transactionKey = pg.transactionsOf(Payment.providerOrderIdOf(orderId)).get(0).transactionKey();
         pg.complete(transactionKey, "SUCCESS");
         perform(asCustomer(post("/api/v1/orders/" + orderId + "/payment/reconcile"), customer), "")
@@ -134,7 +133,7 @@ class PointOrderFlowE2ETest {
             .andExpect(jsonPath("$.data.paymentMethod").value("PG"))
             .andExpect(jsonPath("$.data.paymentAmount").value(7_000));
 
-        // 고객: 포인트 잔액은 결제로 줄지 않는다
+        // 고객: 포인트는 결제로 줄지 않음
         mvc.perform(asCustomer(get("/api/v1/points"), customer))
             .andExpect(jsonPath("$.data.balance").value(10_000));
 

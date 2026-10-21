@@ -23,7 +23,7 @@ public class OrderV1Dto {
         }
     }
 
-    /** 금액은 받지 않고 저장된 주문에서 정함. 카드는 합성 값만 쓰며 저장하지 않음 (5주차 설계 7) */
+    /** 금액은 받지 않고 저장된 주문에서 정함 */
     public record ConfirmRequest(String paymentAttemptKey, String cardType, String cardNo) {
         public ConfirmCommand toCommand() {
             return new ConfirmCommand(paymentAttemptKey, cardType, cardNo);
@@ -35,10 +35,7 @@ public class OrderV1Dto {
         }
     }
 
-    /**
-     * 결제수단 · 결제 상태는 DRAFT 에 없음. paymentCheck 는 이번 요청에서 PG 를 조회하지 못했을 때만 UNAVAILABLE.
-     * statusUrl 은 새 결제를 만들지 않고 상태를 다시 볼 경로 (5주차 설계 7)
-     */
+    /** paymentCheck 는 이번 요청의 PG 조회 실패 시에만 UNAVAILABLE */
     public record OrderResponse(
         Long id,
         String status,

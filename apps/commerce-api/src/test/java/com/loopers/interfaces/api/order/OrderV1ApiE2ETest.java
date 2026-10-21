@@ -114,7 +114,6 @@ class OrderV1ApiE2ETest {
         return postAs(requester, "/api/v1/orders/" + orderId + "/payment/reconcile", "");
     }
 
-    /** 테스트 PG 에서 이 주문의 거래를 종결시킴 */
     private void completeTransactionOf(Long orderId, String status) {
         String transactionKey = pg.transactionsOf(Payment.providerOrderIdOf(orderId)).get(0).transactionKey();
         pg.complete(transactionKey, status);

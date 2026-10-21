@@ -13,10 +13,10 @@ public interface OrderRepository {
 
     Optional<Order> findById(Long orderId);
 
-    /** 소유자 조건 조회를 배타 잠금으로 함. 결제 시작(TX A)이 같은 주문의 동시 확정을 줄 세움 (5주차 설계 4.1, D-63) */
+    /** 같은 주문의 동시 결제 시작을 줄 세움 (D-63) */
     Optional<Order> findByIdAndUserIdForUpdate(Long orderId, Long userId);
 
-    /** 결과 적용(TX B)이 같은 주문의 결제 시도 · 예약 전이를 한 번만 일어나게 함 (5주차 설계 4.3, D-63) */
+    /** 같은 주문의 결과 적용을 한 번만 일어나게 함 (D-63) */
     Optional<Order> findByIdForUpdate(Long orderId);
 
     /** 주문 시각 desc, 식별자 desc. userId · status 가 null 이면 그 조건으로 거르지 않는다. */

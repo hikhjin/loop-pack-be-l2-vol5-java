@@ -29,10 +29,7 @@ import static com.loopers.support.ConcurrentRunner.outcomeOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-/**
- * 실제 Facade · repository · MySQL · 테스트 PG HTTP 를 통과하는 동시 결제 시작을 확인함 (3주차 설계 6.4, 5주차 설계 4.1).
- * 작업의 시작만 맞추고, 모든 작업이 끝난 뒤 새 트랜잭션에서 DB 를 다시 읽어 요청 결과 · PG 수신 횟수와 함께 비교함
- */
+/** 동시 결제 시작. 모든 작업이 끝난 뒤 새 트랜잭션에서 DB 를 다시 읽어 요청 결과 · PG 수신 횟수와 비교함 */
 @SpringBootTest
 class OrderConfirmConcurrencyTest {
 

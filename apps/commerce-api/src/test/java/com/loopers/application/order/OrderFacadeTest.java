@@ -30,10 +30,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/**
- * 주문 생성 · 조회의 협력은 Facade 가 조율하므로 fake 저장 구현을 연결해 DB 없이 확인함 (설계 4.4, 7.2).
- * 주문 확정(PG 결제)은 OrderPaymentFacadeTest 가 확인함 (5주차 설계 4)
- */
+/** 주문 생성 · 조회를 fake 저장 구현으로 DB 없이 확인함. 주문 확정은 OrderPaymentFacadeTest 가 확인함 */
 class OrderFacadeTest {
 
     private static final Long USER_ID = 1L;

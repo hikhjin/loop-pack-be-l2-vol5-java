@@ -22,17 +22,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * 로컬 테스트 PG 계약(5주차 설계 3.1)을 따르는 작은 HTTP 서버. 127.0.0.1 의 빈 포트에서 뜸.
- * 거래 저장소 · create 수신 횟수 · 받은 요청을 관찰할 수 있고, 생성 · 조회 응답 방식을 테스트마다 고정함.
- * 무작위 지연 · 성공 확률은 넣지 않음 (5주차 설계 10). 테스트가 끝나면 close 로 정리함
- */
+/** 5주차 설계 3.1 계약을 따르는 테스트 PG. 응답 방식을 테스트마다 고정하며 무작위 지연 · 성공 확률은 넣지 않음 */
 public final class TestPgServer implements AutoCloseable {
 
     public static final String PAYMENTS_PATH = "/api/v1/payments";
     private static final String REJECTED_BEFORE_CREATE = "TEST_PG_REJECTED_BEFORE_CREATE";
 
-    /** 생성 요청에 대한 응답 방식 */
     public enum CreateBehavior {
         /** 거래를 PENDING 으로 만들고 202 */
         ACCEPT,
@@ -46,9 +41,7 @@ public final class TestPgServer implements AutoCloseable {
         RESPOND
     }
 
-    /** 조회 요청에 대한 응답 방식 */
     public enum LookupBehavior {
-        /** 저장소 그대로 응답 */
         NORMAL,
         /** 정한 시간만큼 늦게 저장소 그대로 응답 */
         DELAY,
@@ -56,7 +49,7 @@ public final class TestPgServer implements AutoCloseable {
         RESPOND
     }
 
-    /** 서버가 받은 요청 한 건. query 는 디코딩한 값, rawQuery 는 받은 그대로 */
+    /** rawQuery 는 받은 그대로, queryParam 은 디코딩한 값 */
     public record RecordedRequest(String method, String path, String rawQuery, Map<String, List<String>> headers, String body) {
         public Optional<String> header(String name) {
             return headers.entrySet().stream()
@@ -80,7 +73,6 @@ public final class TestPgServer implements AutoCloseable {
         }
     }
 
-    /** 저장된 외부 거래 */
     public record Transaction(String transactionKey, String orderId, long amount, String status) {}
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -119,10 +111,7 @@ public final class TestPgServer implements AutoCloseable {
         }
     }
 
-    /**
-     * Spring 테스트가 함께 쓰는 서버. 설정값(base URL)이 테스트마다 같아야 Spring 컨텍스트 캐시가 유지되므로 한 번만 띄움.
-     * 테스트마다 reset 으로 거래 · 횟수 · 응답 방식을 비움. JVM 이 끝날 때 정리함
-     */
+    /** base URL 이 같아야 Spring 컨텍스트 캐시가 유지되므로 한 번만 띄우고 테스트마다 reset 함 */
     public static synchronized TestPgServer shared() {
         if (shared == null) {
             shared = start();
@@ -137,7 +126,7 @@ public final class TestPgServer implements AutoCloseable {
         return "http://127.0.0.1:" + server.getAddress().getPort();
     }
 
-    /** 거래 저장소 · 받은 요청 · 횟수를 비우고 응답 방식을 정상(수락 · 그대로 조회)으로 되돌림 */
+    /** 응답 방식을 수락 · 그대로 조회로 되돌림 */
     public void reset() {
         transactions.clear();
         requests.clear();
@@ -147,8 +136,6 @@ public final class TestPgServer implements AutoCloseable {
         lookupBehavior = LookupBehavior.NORMAL;
         delay = Duration.ZERO;
     }
-
-    // 응답 방식
 
     public void willAccept() {
         this.createBehavior = CreateBehavior.ACCEPT;
@@ -188,16 +175,13 @@ public final class TestPgServer implements AutoCloseable {
         this.lookupBehavior = LookupBehavior.RESPOND;
     }
 
-    // 거래 저장소
-
-    /** 주문의 거래를 직접 추가함. 복수 거래 · 불일치 장면을 만들 때 씀 */
+    /** 복수 거래 · 불일치 장면용 */
     public String addTransaction(String orderId, long amount, String status) {
         String transactionKey = nextTransactionKey();
         transactions.add(new Transaction(transactionKey, orderId, amount, status));
         return transactionKey;
     }
 
-    /** 처리 중인 거래를 SUCCESS · FAILED 로 바꿈 */
     public void complete(String transactionKey, String status) {
         Transaction current = transaction(transactionKey)
             .orElseThrow(() -> new IllegalArgumentException("없는 거래: " + transactionKey));
@@ -217,8 +201,6 @@ public final class TestPgServer implements AutoCloseable {
     public Optional<Transaction> transaction(String transactionKey) {
         return transactions.stream().filter(transaction -> transaction.transactionKey().equals(transactionKey)).findFirst();
     }
-
-    // 관찰
 
     public int createCount() {
         return createCount.get();
@@ -244,8 +226,6 @@ public final class TestPgServer implements AutoCloseable {
         server.stop(0);
         executor.shutdownNow();
     }
-
-    // 처리
 
     private void handle(HttpExchange exchange) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
@@ -278,7 +258,7 @@ public final class TestPgServer implements AutoCloseable {
             case ACCEPT -> respond(exchange, 202, transactionJson(createPending(orderId, amount)).toString());
             case ACCEPT_THEN_DROP -> {
                 createPending(orderId, amount);
-                // 응답 헤더를 보내지 않고 연결을 닫아, 호출자가 거래 생성 여부를 알 수 없게 함
+                // 응답 없이 연결을 닫아 호출자가 거래 생성 여부를 모르게 함
                 exchange.close();
             }
             case ACCEPT_THEN_DELAY -> {

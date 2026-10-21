@@ -17,10 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 주문 생성 · 조회 유스케이스. 주문 · 상품 여러 애그리거트의 순서와 트랜잭션을 여기서 정함 (설계 4.4, D-11).
- * 주문 확정(결제)은 PG 결제로 바뀌어 OrderPaymentFacade 가 맡음 (5주차 설계 4)
- */
+/** 주문 생성 · 조회 유스케이스 (설계 4.4, D-11). 주문 확정(결제)은 OrderPaymentFacade 가 맡음 */
 @RequiredArgsConstructor
 @Component
 public class OrderFacade {

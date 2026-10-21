@@ -6,7 +6,7 @@ package com.loopers.domain.order;
  */
 public enum OrderStatus {
     DRAFT,
-    /** 재고를 확보하고 PG 결과를 기다리는 중. 만료로 끝내지 않음 */
+    /** 재고를 확보하고 PG 결과를 기다리는 중 */
     PAYMENT_PENDING,
     CONFIRMED,
     /** 결제가 확정 실패함. 같은 주문으로 다시 결제하지 않음 */

@@ -31,10 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 
-/**
- * PG 결제의 로컬 트랜잭션(TX A · TX B)이 각각 함께 commit 되거나 rollback 되는지 실제 DB 로 확인함 (5주차 설계 4.1, 4.3).
- * 테스트 메서드를 트랜잭션으로 감싸지 않고, 서비스 트랜잭션이 끝난 뒤 새 트랜잭션에서 다시 읽음
- */
+/** TX A · TX B 가 각각 통째로 commit · rollback 되는지 확인함. 서비스 트랜잭션이 끝난 뒤 새 트랜잭션에서 다시 읽음 */
 @SpringBootTest
 class OrderConfirmTransactionTest {
 

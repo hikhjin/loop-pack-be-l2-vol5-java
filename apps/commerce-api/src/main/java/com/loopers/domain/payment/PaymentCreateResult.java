@@ -1,9 +1,6 @@
 package com.loopers.domain.payment;
 
-/**
- * 발송 권한을 가진 실행이 받은 생성 응답의 분류 (5주차 설계 2.2 사건 E1~E3).
- * 요청과의 일치 비교는 adapter 가 방금 보낸 요청으로 끝낸 뒤 이 값을 돌려줌
- */
+/** 생성 응답의 분류(E1~E3). 요청과의 일치 비교는 adapter 가 끝냄 */
 public sealed interface PaymentCreateResult {
 
     /** E1. 생성 202 + PENDING, 요청과 같은 주문 · 금액 */

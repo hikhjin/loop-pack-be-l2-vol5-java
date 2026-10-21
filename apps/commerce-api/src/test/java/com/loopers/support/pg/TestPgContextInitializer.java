@@ -7,9 +7,8 @@ import org.springframework.core.env.MapPropertySource;
 import java.util.Map;
 
 /**
- * 모든 Spring 테스트의 PG 연결을 공유 테스트 PG 로 바꿈. src/test/resources/META-INF/spring.factories 로 등록함.
- * 컨텍스트를 만들기 전에 설정을 넣어, @ConfigurationProperties 바인딩보다 항상 앞서게 함.
- * 응답 대기는 timeout 장면이 테스트를 오래 붙잡지 않도록 짧게 둠
+ * 모든 Spring 테스트를 공유 테스트 PG 에 연결함 (META-INF/spring.factories 로 등록).
+ * 컨텍스트 생성 전에 넣어 @ConfigurationProperties 바인딩보다 항상 앞섬. timeout 장면이 오래 걸리지 않게 대기를 짧게 둠
  */
 public class TestPgContextInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 

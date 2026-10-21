@@ -22,11 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 로컬 테스트 PG 의 HTTP 계약을 관찰 결과로 바꾸는 adapter (5주차 설계 3.2, 3.3).
- * 숨은 재시도가 없는 JDK HttpClient 를 쓰고, 생성 요청은 결과와 관계없이 한 번만 보냄 (D-60, D-61).
- * 계약과 정확히 맞지 않는 응답은 효과 0건의 증거로 보지 않고 결과 미확인 · 조회 불가로 돌려줌
- */
+/** 계약과 정확히 맞지 않는 응답은 효과 0건의 증거로 보지 않고 결과 미확인 · 조회 불가로 돌려줌 (5주차 설계 3.3) */
 @Component
 public class TestPgPaymentGateway implements PaymentGateway {
 
@@ -44,7 +40,7 @@ public class TestPgPaymentGateway implements PaymentGateway {
     private final ObjectMapper objectMapper;
 
     public TestPgPaymentGateway(TestPgProperties properties, ObjectMapper objectMapper) {
-        // HTTP/2 업그레이드 시도 없이 HTTP/1.1 로 고정함. JDK HttpClient 는 기본 설정에서 POST 를 다시 보내지 않음
+        // HttpURLConnection 과 달리 JDK HttpClient 는 POST 를 숨은 재시도로 다시 보내지 않음 (D-61)
         HttpClient httpClient = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(properties.connectTimeout())
@@ -65,7 +61,7 @@ public class TestPgPaymentGateway implements PaymentGateway {
             .build();
     }
 
-    /** 생성 응답을 E1 · E2 · E3 로 나눔. 연결 실패 · timeout · 해석 불가는 모두 E3 (5주차 설계 3.3) */
+    /** 연결 실패 · timeout · 해석 불가는 모두 E3 */
     @Override
     public PaymentCreateResult create(PaymentGatewayRequest request) {
         try {
@@ -80,7 +76,7 @@ public class TestPgPaymentGateway implements PaymentGateway {
         }
     }
 
-    /** 주문 단위 거래 목록. 빈 목록도 정상 결과이며, 200 배열이 아니면 조회 불가 (5주차 설계 3.3) */
+    /** 200 배열이 아니면 조회 불가 */
     @Override
     public PaymentLookupResult findByProviderOrderId(String providerOrderId) {
         try {
@@ -94,7 +90,7 @@ public class TestPgPaymentGateway implements PaymentGateway {
         }
     }
 
-    /** 거래 한 건 조회. 업무 흐름은 주문 단위 조회만 쓰고(D-66), 이 경로는 계약 확인용으로 둠. 404 는 빈 목록 */
+    /** 계약 확인용. 업무 흐름은 주문 단위 조회만 씀 (D-66) */
     public PaymentLookupResult findByTransactionKey(String transactionKey) {
         try {
             return lookupClient.get()
@@ -124,7 +120,7 @@ public class TestPgPaymentGateway implements PaymentGateway {
                 return new PaymentCreateResult.Accepted(transactionKey);
             }
         }
-        // 효과 0건의 증거는 code · transactionCreated=false · 주문 · 금액이 모두 맞을 때만 인정함 (5주차 설계 3.3 E2)
+        // 효과 0건은 네 조건이 모두 맞을 때만 인정함
         if (status == UNPROCESSABLE && body.isObject() && matchesRequest(request, body)
             && REJECTED_BEFORE_CREATE.equals(textOrNull(body, "code"))
             && body.path("transactionCreated").isBoolean() && !body.path("transactionCreated").booleanValue()) {
@@ -160,7 +156,6 @@ public class TestPgPaymentGateway implements PaymentGateway {
             .orElseGet(PaymentLookupResult.Unavailable::new);
     }
 
-    /** 필드가 빠졌거나 타입 · 상태 값이 계약과 다르면 해석 불가로 봄 */
     private static Optional<ProviderTransaction> toTransaction(JsonNode node) {
         String transactionKey = textOrNull(node, "transactionKey");
         String orderId = textOrNull(node, "orderId");
@@ -195,7 +190,7 @@ public class TestPgPaymentGateway implements PaymentGateway {
         return value.isTextual() ? value.textValue() : null;
     }
 
-    /** 본문이 없거나 JSON 이 아니면 빈 노드. 호출 쪽 조건이 모두 거짓이 되어 E3 · 조회 불가로 이어짐 */
+    /** 본문이 없거나 JSON 이 아니면 빈 노드 */
     private JsonNode readTree(ClientHttpResponse response) throws IOException {
         byte[] bytes = response.getBody().readAllBytes();
         if (bytes.length == 0) {

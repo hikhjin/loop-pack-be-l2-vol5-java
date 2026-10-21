@@ -62,10 +62,7 @@ public class ProductService {
         return products;
     }
 
-    /**
-     * 예약 반환을 위해 삭제 여부와 관계없이 식별자 오름차순으로 한 번에 잠금 (5주차 설계 4.3, 6).
-     * 상품은 논리 삭제라 확보 뒤 삭제돼도 행이 남으므로, 없는 상품은 예약과 상품이 어긋난 상태 오류로 막음
-     */
+    /** 예약 반환용. 상품은 논리 삭제라 행이 없으면 예약과 어긋난 것이므로 상태 오류로 막음 */
     @Transactional
     public Map<Long, Product> getProductsForUpdate(List<Long> productIds) {
         Map<Long, Product> locked = productRepository.findAllForUpdate(productIds).stream()

@@ -48,7 +48,7 @@ public class OrderV1Controller implements OrderV1ApiSpec {
         return respond(orderPaymentFacade.reconcile(loginUser.id(), orderId));
     }
 
-    /** 결제 대기 · 결과 미확인은 202, 같은 시도의 종결 결과는 200 (5주차 설계 7) */
+    /** 미종결 202, 종결 200 */
     private static ResponseEntity<ApiResponse<OrderV1Dto.OrderResponse>> respond(OrderInfo info) {
         HttpStatus status = info.paymentInProgress() ? HttpStatus.ACCEPTED : HttpStatus.OK;
         return ResponseEntity.status(status).body(ApiResponse.success(OrderV1Dto.OrderResponse.from(info)));

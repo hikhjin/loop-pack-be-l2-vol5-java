@@ -1,6 +1,6 @@
 package com.loopers.domain.payment;
 
-/** 결제 상태를 바꾸지 않고 남기는 충돌 · 이상 사유 (5주차 설계 2.2 "충돌 기록", D-65) */
+/** 결제 상태를 바꾸지 않고 남기는 충돌 사유 (D-65) */
 public enum PaymentConflict {
     /** 같은 주문의 거래가 2건 이상 */
     MULTIPLE_TRANSACTIONS,

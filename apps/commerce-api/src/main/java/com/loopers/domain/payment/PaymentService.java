@@ -15,7 +15,6 @@ import java.util.Optional;
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
-    /** 충돌 기록 시각의 기준 */
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -29,7 +28,7 @@ public class PaymentService {
             .orElseThrow(() -> new CoreException(PaymentErrorCode.PAYMENT_NOT_FOUND));
     }
 
-    /** 다른 주문이 이미 쓴 시도 키면 거절함. 재고를 다루기 전에 부름 (5주차 설계 4.1) */
+    /** 재고를 다루기 전에 부름 */
     @Transactional(readOnly = true)
     public void validateAttemptKeyAvailable(String attemptKey) {
         if (paymentRepository.findByAttemptKey(attemptKey).isPresent()) {
@@ -37,10 +36,7 @@ public class PaymentService {
         }
     }
 
-    /**
-     * 발송 권한을 기록함. 미리 확인한 뒤에도 다른 주문이 같은 키로 먼저 저장하면 유일 제약이 막고,
-     * 이 트랜잭션 전체(재고 확보 포함)가 rollback 됨 (5주차 설계 4.1)
-     */
+    /** 사전 확인 뒤 같은 키가 먼저 저장되면 유일 제약이 막아 TX 전체가 rollback 됨 */
     @Transactional
     public Payment request(Long orderId, String attemptKey, long amount) {
         try {

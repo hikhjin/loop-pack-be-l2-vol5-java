@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-/** DB 없이 결제 시도의 협력을 확인하기 위한 저장 구현. 주문 · 시도 키 유일 제약을 흉내 냄 */
+/** 주문 · 시도 키 유일 제약을 흉내 냄 */
 public class FakePaymentRepository implements PaymentRepository {
 
     private final Map<Long, Payment> payments = new LinkedHashMap<>();

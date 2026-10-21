@@ -3,10 +3,7 @@ package com.loopers.domain.payment;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * HTTP 없이 Facade 의 순서를 확인하기 위한 PG 대역. 받은 생성 요청을 남기고, 정해 둔 결과를 돌려줌.
- * 실제 HTTP 형식 · 응답 매핑은 PaymentProviderContractTest 가 확인함
- */
+/** HTTP 형식 · 응답 매핑은 PaymentProviderContractTest 가 확인함 */
 public class FakePaymentGateway implements PaymentGateway {
 
     private final List<PaymentGatewayRequest> createRequests = new ArrayList<>();

@@ -14,10 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
-/**
- * 주문의 PG 결제 유스케이스. 트랜잭션을 열지 않고 "로컬 TX A → TX 밖 PG 호출 → 로컬 TX B" 순서만 정함 (5주차 설계 4).
- * PG 호출 동안 DB 트랜잭션과 행 잠금을 쥐지 않으며, 생성 요청은 결과와 관계없이 다시 보내지 않음 (D-60)
- */
+/** TX A → TX 밖 PG 호출 → TX B 순서만 정함. PG 호출 중에는 잠금을 쥐지 않고, 생성 요청은 다시 보내지 않음 (D-60) */
 @RequiredArgsConstructor
 @Component
 public class OrderPaymentFacade {
@@ -26,7 +23,7 @@ public class OrderPaymentFacade {
     private final ProductListCache productListCache;
     private final ProductDetailCache productDetailCache;
 
-    /** 카드 정보는 PG 요청에만 쓰고 저장하지 않음. 로그로 새지 않도록 toString 에서 가림 (5주차 설계 2.2) */
+    /** 로그로 새지 않도록 카드 번호를 가림 */
     public record ConfirmCommand(String paymentAttemptKey, String cardType, String cardNo) {
         @Override
         public String toString() {
@@ -34,14 +31,11 @@ public class OrderPaymentFacade {
         }
     }
 
-    /**
-     * 주문 확정 = PG 결제 시작 (5주차 설계 4.1). 발송 권한을 얻은 실행만 PG 에 생성을 한 번 보내고, 그 응답을 TX B 에서 적용함.
-     * 같은 시도 키의 재요청 · 동시 요청은 저장된 상태만 돌려줌. 외부 결과 확인은 reconcile · callback 이 맡음
-     */
+    /** 발송 권한을 얻은 실행만 PG 생성을 한 번 보냄. 같은 시도 키의 재요청은 저장된 상태만 돌려줌 */
     public OrderInfo confirm(Long userId, Long orderId, ConfirmCommand command) {
         validate(command);
         OrderPaymentSteps.Started started = steps.start(userId, orderId, command.paymentAttemptKey());
-        // TX A 가 commit 된 뒤라 rollback 된 확보로 캐시를 지우지 않음. Redis 실패는 결제에 영향을 주지 않음 (4주차 cache-design.md 3.4)
+        // TX A commit 뒤에 무효화해 rollback 된 확보로 캐시를 지우지 않음
         invalidate(started.soldOutBrandIds(), started.soldOutProductIds());
         if (!started.sendable()) {
             return started.order();
@@ -53,10 +47,7 @@ public class OrderPaymentFacade {
         return applied.order();
     }
 
-    /**
-     * 본인 미완료 시도의 기존 외부 거래를 주문 단위로 조회해 적용함 (5주차 설계 4.2). 종결된 시도는 조회하지 않음.
-     * 조회하지 못하면 저장된 상태를 그대로 두고 확인 불가를 알림. 새 결제를 만들지 않음
-     */
+    /** 미종결 시도만 조회함. 조회 실패면 저장된 상태에 확인 불가를 붙여 돌려줌 */
     public OrderInfo reconcile(Long userId, Long orderId) {
         OrderPaymentSteps.Snapshot snapshot = steps.snapshot(userId, orderId);
         if (snapshot.settled()) {
@@ -71,7 +62,7 @@ public class OrderPaymentFacade {
         return applied.order();
     }
 
-    /** 시도 키와 합성 카드 값이 비었으면 주문을 다루기 전에 거절함 (5주차 설계 7) */
+    /** 주문을 다루기 전에 거절함 */
     private static void validate(ConfirmCommand command) {
         Payment.validateAttemptKey(command.paymentAttemptKey());
         if (isBlank(command.cardType()) || isBlank(command.cardNo())) {

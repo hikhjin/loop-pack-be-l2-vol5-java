@@ -25,10 +25,7 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-/**
- * 실제 adapter 가 보내는 HTTP 와 응답 매핑을 로컬 테스트 PG 계약(5주차 설계 3.1, 3.3)과 대조함.
- * 업무 상태 전이는 PaymentTest 가, 여기서는 형식 · 분류 · 숨은 재시도 여부만 확인함
- */
+/** HTTP 형식 · 응답 분류 · 숨은 재시도 여부만 확인함. 상태 전이는 PaymentTest 가 확인함 */
 class PaymentProviderContractTest {
 
     private static final String ORDER_ID = "LP-ORD-0000000042";

@@ -124,14 +124,13 @@ class ProductListCacheInvalidationTest {
         return statistics().getPrepareStatementCount() > 0;
     }
 
-    /** 주문 확정 = PG 결제 시작. 재고는 이때 확보되므로 품절 여부도 이때 바뀜 (5주차 설계 4.1) */
+    /** 재고는 결제 시작 때 확보되므로 품절 여부도 이때 바뀜 */
     private Long confirmOrderOf(Long productId, int quantity) {
         Long orderId = orderFacade.createOrder(BUYER, List.of(new OrderRequestLine(productId, quantity))).id();
         orderPaymentFacade.confirm(BUYER, orderId, new ConfirmCommand("attempt-" + orderId, "TEST", "0000-0000-0000-0000"));
         return orderId;
     }
 
-    /** 테스트 PG 의 거래를 성공으로 끝내고 결과를 확인해 CONFIRMED 로 만듦 */
     private Long paidOrderOf(Long productId, int quantity) {
         Long orderId = confirmOrderOf(productId, quantity);
         String transactionKey = pg.transactionsOf(Payment.providerOrderIdOf(orderId)).get(0).transactionKey();
