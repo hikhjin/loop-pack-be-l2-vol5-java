@@ -1,4 +1,4 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.enums;
 
 public enum ProviderTransactionStatus {
     PENDING,

@@ -1,4 +1,4 @@
-package com.loopers.domain.order;
+package com.loopers.domain.order.enums;
 
 /** 5주차 전 확정 주문은 모두 POINT */
 public enum PaymentMethod {

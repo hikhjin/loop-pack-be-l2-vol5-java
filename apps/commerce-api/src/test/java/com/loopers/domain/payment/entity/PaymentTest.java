@@ -1,4 +1,4 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.entity;
 
 import com.loopers.support.error.CoreException;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +18,15 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import com.loopers.domain.payment.enums.PaymentConflict;
+import com.loopers.domain.payment.enums.PaymentErrorCode;
+import com.loopers.domain.payment.enums.PaymentStatus;
+import com.loopers.domain.payment.enums.ProviderTransactionStatus;
+import com.loopers.domain.payment.enums.ReservationChange;
+import com.loopers.domain.payment.enums.ReservationStatus;
+import com.loopers.domain.payment.vo.PaymentCreateResult;
+import com.loopers.domain.payment.vo.PaymentLookupResult;
+import com.loopers.domain.payment.vo.ProviderTransaction;
 
 /** 5주차 설계 2.2 전이표의 모든 칸 */
 class PaymentTest {

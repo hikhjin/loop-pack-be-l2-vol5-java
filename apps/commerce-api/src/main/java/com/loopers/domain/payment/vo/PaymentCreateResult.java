@@ -1,4 +1,4 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.vo;
 
 /** 생성 응답의 분류(E1~E3). 요청과의 일치 비교는 adapter 가 끝냄 */
 public sealed interface PaymentCreateResult {

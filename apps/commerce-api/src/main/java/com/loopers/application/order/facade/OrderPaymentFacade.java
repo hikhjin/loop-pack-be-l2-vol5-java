@@ -1,11 +1,11 @@
-package com.loopers.application.order;
+package com.loopers.application.order.facade;
 
-import com.loopers.domain.payment.Payment;
-import com.loopers.domain.payment.PaymentCreateResult;
-import com.loopers.domain.payment.PaymentErrorCode;
-import com.loopers.domain.payment.PaymentGateway;
-import com.loopers.domain.payment.PaymentGatewayRequest;
-import com.loopers.domain.payment.PaymentLookupResult;
+import com.loopers.domain.payment.entity.Payment;
+import com.loopers.domain.payment.vo.PaymentCreateResult;
+import com.loopers.domain.payment.enums.PaymentErrorCode;
+import com.loopers.domain.payment.gateway.PaymentGateway;
+import com.loopers.domain.payment.gateway.PaymentGatewayRequest;
+import com.loopers.domain.payment.vo.PaymentLookupResult;
 import com.loopers.domain.product.ProductDetailCache;
 import com.loopers.domain.product.ProductListCache;
 import com.loopers.support.error.CoreException;
@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
+import com.loopers.application.order.OrderInfo;
 
 /** TX A → TX 밖 PG 호출 → TX B 순서만 정함. PG 호출 중에는 잠금을 쥐지 않고, 생성 요청은 다시 보내지 않음 (D-60) */
 @RequiredArgsConstructor

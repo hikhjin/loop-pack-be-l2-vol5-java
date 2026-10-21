@@ -1,6 +1,6 @@
-package com.loopers.infrastructure.payment;
+package com.loopers.infrastructure.payment.persistence;
 
-import com.loopers.domain.payment.Payment;
+import com.loopers.domain.payment.entity.Payment;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

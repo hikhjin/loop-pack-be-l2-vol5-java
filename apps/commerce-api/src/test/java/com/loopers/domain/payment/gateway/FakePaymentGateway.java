@@ -1,7 +1,9 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.gateway;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.loopers.domain.payment.vo.PaymentCreateResult;
+import com.loopers.domain.payment.vo.PaymentLookupResult;
 
 /** HTTP 형식 · 응답 매핑은 PaymentProviderContractTest 가 확인함 */
 public class FakePaymentGateway implements PaymentGateway {

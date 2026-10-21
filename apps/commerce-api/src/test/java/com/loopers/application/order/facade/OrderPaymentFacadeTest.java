@@ -1,7 +1,7 @@
-package com.loopers.application.order;
+package com.loopers.application.order.facade;
 
 import com.loopers.application.order.OrderFacade.OrderRequestLine;
-import com.loopers.application.order.OrderPaymentFacade.ConfirmCommand;
+import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.domain.brand.Brand;
 import com.loopers.domain.brand.FakeBrandRepository;
 import com.loopers.domain.order.FakeOrderRepository;
@@ -9,19 +9,19 @@ import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderErrorCode;
 import com.loopers.domain.order.OrderService;
 import com.loopers.domain.order.OrderStatus;
-import com.loopers.domain.order.PaymentMethod;
-import com.loopers.domain.payment.FakePaymentGateway;
-import com.loopers.domain.payment.FakePaymentRepository;
-import com.loopers.domain.payment.Payment;
-import com.loopers.domain.payment.PaymentCreateResult;
-import com.loopers.domain.payment.PaymentErrorCode;
-import com.loopers.domain.payment.PaymentGatewayRequest;
-import com.loopers.domain.payment.PaymentLookupResult;
-import com.loopers.domain.payment.PaymentService;
-import com.loopers.domain.payment.PaymentStatus;
-import com.loopers.domain.payment.ProviderTransaction;
-import com.loopers.domain.payment.ProviderTransactionStatus;
-import com.loopers.domain.payment.ReservationStatus;
+import com.loopers.domain.order.enums.PaymentMethod;
+import com.loopers.domain.payment.gateway.FakePaymentGateway;
+import com.loopers.domain.payment.repository.FakePaymentRepository;
+import com.loopers.domain.payment.entity.Payment;
+import com.loopers.domain.payment.vo.PaymentCreateResult;
+import com.loopers.domain.payment.enums.PaymentErrorCode;
+import com.loopers.domain.payment.gateway.PaymentGatewayRequest;
+import com.loopers.domain.payment.vo.PaymentLookupResult;
+import com.loopers.domain.payment.service.PaymentService;
+import com.loopers.domain.payment.enums.PaymentStatus;
+import com.loopers.domain.payment.vo.ProviderTransaction;
+import com.loopers.domain.payment.enums.ProviderTransactionStatus;
+import com.loopers.domain.payment.enums.ReservationStatus;
 import com.loopers.domain.product.FakeProductDetailCache;
 import com.loopers.domain.product.FakeProductLikeCountRepository;
 import com.loopers.domain.product.FakeProductListCache;
@@ -51,6 +51,8 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import com.loopers.application.order.OrderFacade;
+import com.loopers.application.order.OrderInfo;
 
 /** fake 와 PG 대역으로 DB · HTTP 없이 확인함. fake 에는 rollback 이 없어 DB 기준 rollback 은 OrderConfirmTransactionTest 가 확인함 */
 class OrderPaymentFacadeTest {

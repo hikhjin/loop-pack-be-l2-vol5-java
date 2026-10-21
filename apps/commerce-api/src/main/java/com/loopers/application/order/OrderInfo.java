@@ -2,7 +2,7 @@ package com.loopers.application.order;
 
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderItem;
-import com.loopers.domain.payment.Payment;
+import com.loopers.domain.payment.entity.Payment;
 
 import java.time.ZonedDateTime;
 import java.util.List;

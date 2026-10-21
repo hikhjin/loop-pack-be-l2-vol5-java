@@ -1,14 +1,14 @@
-package com.loopers.infrastructure.payment;
+package com.loopers.infrastructure.payment.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.loopers.domain.payment.PaymentCreateResult;
-import com.loopers.domain.payment.PaymentGateway;
-import com.loopers.domain.payment.PaymentGatewayRequest;
-import com.loopers.domain.payment.PaymentLookupResult;
-import com.loopers.domain.payment.ProviderTransaction;
-import com.loopers.domain.payment.ProviderTransactionStatus;
+import com.loopers.domain.payment.vo.PaymentCreateResult;
+import com.loopers.domain.payment.gateway.PaymentGateway;
+import com.loopers.domain.payment.gateway.PaymentGatewayRequest;
+import com.loopers.domain.payment.vo.PaymentLookupResult;
+import com.loopers.domain.payment.vo.ProviderTransaction;
+import com.loopers.domain.payment.enums.ProviderTransactionStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.JdkClientHttpRequestFactory;

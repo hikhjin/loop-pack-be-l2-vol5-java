@@ -1,4 +1,4 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.entity;
 
 import com.loopers.domain.BaseEntity;
 import com.loopers.support.error.CoreException;
@@ -11,6 +11,14 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.time.ZonedDateTime;
 import java.util.List;
+import com.loopers.domain.payment.enums.PaymentConflict;
+import com.loopers.domain.payment.enums.PaymentErrorCode;
+import com.loopers.domain.payment.enums.PaymentStatus;
+import com.loopers.domain.payment.enums.ReservationChange;
+import com.loopers.domain.payment.enums.ReservationStatus;
+import com.loopers.domain.payment.vo.PaymentCreateResult;
+import com.loopers.domain.payment.vo.PaymentLookupResult;
+import com.loopers.domain.payment.vo.ProviderTransaction;
 
 /**
  * 주문 하나의 결제 시도. 상태는 5주차 설계 2.2 전이표대로만 바뀌며 create 재발송 전이는 없음 (D-60).

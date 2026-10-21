@@ -1,4 +1,4 @@
-package com.loopers.infrastructure.payment;
+package com.loopers.infrastructure.payment.client;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;

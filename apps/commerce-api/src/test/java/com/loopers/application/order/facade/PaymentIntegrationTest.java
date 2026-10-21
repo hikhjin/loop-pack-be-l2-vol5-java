@@ -1,22 +1,22 @@
-package com.loopers.application.order;
+package com.loopers.application.order.facade;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loopers.application.order.OrderPaymentFacade.ConfirmCommand;
+import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.domain.brand.Brand;
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderErrorCode;
 import com.loopers.domain.order.OrderLine;
-import com.loopers.domain.payment.Payment;
-import com.loopers.domain.payment.PaymentErrorCode;
-import com.loopers.domain.payment.PaymentLookupResult;
-import com.loopers.domain.payment.ProviderTransaction;
-import com.loopers.domain.payment.ProviderTransactionStatus;
+import com.loopers.domain.payment.entity.Payment;
+import com.loopers.domain.payment.enums.PaymentErrorCode;
+import com.loopers.domain.payment.vo.PaymentLookupResult;
+import com.loopers.domain.payment.vo.ProviderTransaction;
+import com.loopers.domain.payment.enums.ProviderTransactionStatus;
 import com.loopers.domain.point.Point;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductDetailCache;
 import com.loopers.domain.product.ProductListCache;
-import com.loopers.infrastructure.payment.TestPgPaymentGateway;
-import com.loopers.infrastructure.payment.TestPgProperties;
+import com.loopers.infrastructure.payment.client.TestPgPaymentGateway;
+import com.loopers.infrastructure.payment.client.TestPgProperties;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.pg.TestPgServer;
 import com.loopers.utils.DatabaseCleanUp;
@@ -37,6 +37,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import com.loopers.application.order.OrderInfo;
 
 /** 5주차 설계 10 의 장면. PG 응답 방식을 고정하고 외부 거래 수 · create 횟수와 DB 상태를 함께 비교함 */
 @SpringBootTest

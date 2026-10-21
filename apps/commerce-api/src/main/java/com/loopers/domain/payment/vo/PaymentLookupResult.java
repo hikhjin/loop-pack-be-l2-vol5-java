@@ -1,4 +1,4 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.vo;
 
 import java.util.List;
 

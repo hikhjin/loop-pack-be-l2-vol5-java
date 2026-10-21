@@ -1,4 +1,4 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.repository;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import com.loopers.domain.payment.entity.Payment;
 
 /** 주문 · 시도 키 유일 제약을 흉내 냄 */
 public class FakePaymentRepository implements PaymentRepository {

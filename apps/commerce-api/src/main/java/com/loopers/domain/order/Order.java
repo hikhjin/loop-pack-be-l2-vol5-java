@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.loopers.domain.order.enums.PaymentMethod;
 
 /**
  * 주문. 품목의 합산 · 수량 · 합계 · 상태 규칙을 지킨다 (설계 2.3).

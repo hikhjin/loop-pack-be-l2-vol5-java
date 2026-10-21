@@ -1,7 +1,7 @@
 package com.loopers.application.brand;
 
-import com.loopers.application.order.OrderPaymentFacade;
-import com.loopers.application.order.OrderPaymentFacade.ConfirmCommand;
+import com.loopers.application.order.facade.OrderPaymentFacade;
+import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.domain.brand.Brand;
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderLine;

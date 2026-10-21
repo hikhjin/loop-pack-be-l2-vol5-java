@@ -263,8 +263,8 @@ stateDiagram-v2
 ### 3.2 adapter 구조
 
 ```
-domain/payment/PaymentGateway            (포트: create, findByProviderOrderId)
-infrastructure/payment/TestPgPaymentGateway  (RestClient 구현)
+domain/payment/gateway/PaymentGateway                (포트: create, findByProviderOrderId)
+infrastructure/payment/client/TestPgPaymentGateway   (RestClient 구현)
 ```
 
 - **포트는 domain에 둔다.** application이 infrastructure에 의존하지 않는다(ArchitectureTest). 포트는 HTTP 형식이 아니라 관찰 결과(생성: `PaymentCreateResult` = E1~E3, 조회: `PaymentLookupResult` = 거래 목록 또는 L6)를 돌려준다.

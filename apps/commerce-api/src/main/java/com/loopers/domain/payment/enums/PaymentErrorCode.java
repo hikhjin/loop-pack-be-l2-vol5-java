@@ -1,4 +1,4 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.enums;
 
 import com.loopers.support.error.ErrorCode;
 import lombok.Getter;

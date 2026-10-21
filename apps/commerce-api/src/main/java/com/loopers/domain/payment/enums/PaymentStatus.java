@@ -1,4 +1,4 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.enums;
 
 /** 외부 결과를 얼마나 아는가. 충돌은 상태가 아니라 기록으로 남김 (D-65) */
 public enum PaymentStatus {

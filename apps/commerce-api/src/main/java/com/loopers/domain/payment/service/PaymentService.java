@@ -1,4 +1,4 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.service;
 
 import com.loopers.support.error.CoreException;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +9,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.Optional;
+import com.loopers.domain.payment.entity.Payment;
+import com.loopers.domain.payment.enums.PaymentErrorCode;
+import com.loopers.domain.payment.enums.ReservationChange;
+import com.loopers.domain.payment.repository.PaymentRepository;
+import com.loopers.domain.payment.vo.PaymentCreateResult;
+import com.loopers.domain.payment.vo.PaymentLookupResult;
 
 @RequiredArgsConstructor
 @Component

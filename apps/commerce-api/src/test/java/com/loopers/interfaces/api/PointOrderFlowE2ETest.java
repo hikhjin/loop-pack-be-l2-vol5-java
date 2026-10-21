@@ -2,7 +2,7 @@ package com.loopers.interfaces.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loopers.domain.payment.Payment;
+import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.user.User;
 import com.loopers.infrastructure.user.UserJpaRepository;
 import com.loopers.support.pg.TestPgServer;

@@ -1,4 +1,7 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.gateway;
+
+import com.loopers.domain.payment.vo.PaymentCreateResult;
+import com.loopers.domain.payment.vo.PaymentLookupResult;
 
 /** HTTP 형식이 아니라 관찰 결과만 돌려줌. 상태 전이는 Payment 가 정함 */
 public interface PaymentGateway {

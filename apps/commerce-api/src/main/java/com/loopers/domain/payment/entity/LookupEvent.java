@@ -1,6 +1,7 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.entity;
 
 import java.util.Objects;
+import com.loopers.domain.payment.enums.PaymentConflict;
 
 /** 조회 결과 판정(L1~L5). 저장값과의 비교를 건너뛰지 못하도록 package-private 으로 두고 Payment 만 만듦 */
 enum LookupEvent {

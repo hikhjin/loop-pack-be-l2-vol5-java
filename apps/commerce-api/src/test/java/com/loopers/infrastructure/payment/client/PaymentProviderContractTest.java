@@ -1,12 +1,12 @@
-package com.loopers.infrastructure.payment;
+package com.loopers.infrastructure.payment.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loopers.domain.payment.PaymentCreateResult;
-import com.loopers.domain.payment.PaymentGatewayRequest;
-import com.loopers.domain.payment.PaymentLookupResult;
-import com.loopers.domain.payment.ProviderTransaction;
-import com.loopers.domain.payment.ProviderTransactionStatus;
+import com.loopers.domain.payment.vo.PaymentCreateResult;
+import com.loopers.domain.payment.gateway.PaymentGatewayRequest;
+import com.loopers.domain.payment.vo.PaymentLookupResult;
+import com.loopers.domain.payment.vo.ProviderTransaction;
+import com.loopers.domain.payment.enums.ProviderTransactionStatus;
 import com.loopers.support.pg.TestPgServer;
 import com.loopers.support.pg.TestPgServer.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;

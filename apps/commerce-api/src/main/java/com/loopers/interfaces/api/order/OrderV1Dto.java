@@ -4,7 +4,7 @@ import com.loopers.application.order.OrderDetailInfo;
 import com.loopers.application.order.OrderInfo;
 import com.loopers.application.order.OrderSummaryInfo;
 import com.loopers.application.order.OrderFacade.OrderRequestLine;
-import com.loopers.application.order.OrderPaymentFacade.ConfirmCommand;
+import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 
 import java.time.ZonedDateTime;
 import java.util.List;

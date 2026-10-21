@@ -1,4 +1,4 @@
-package com.loopers.domain.payment;
+package com.loopers.domain.payment.enums;
 
 /** 결제 상태를 바꾸지 않고 남기는 충돌 사유 (D-65) */
 public enum PaymentConflict {
