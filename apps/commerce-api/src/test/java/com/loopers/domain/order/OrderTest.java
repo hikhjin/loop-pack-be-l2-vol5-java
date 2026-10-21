@@ -216,6 +216,52 @@ class OrderTest {
         }
     }
 
+    @DisplayName("0원 주문을 결제 없이 확정할 때, (D-68)")
+    @Nested
+    class ConfirmWithoutPayment {
+        @DisplayName("DRAFT 면, CONFIRMED · 결제수단 NONE · 결제액 0 이고 확정한 시각을 남긴다.")
+        @Test
+        void confirmsWithoutPayment() {
+            // arrange
+            Order order = draft(List.of(line(1L, 0L, 2)));
+            ZonedDateTime now = CREATED_AT.plusMinutes(1);
+
+            // act
+            order.confirmWithoutPayment(now);
+
+            // assert
+            assertAll(
+                () -> assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED),
+                () -> assertThat(order.getPaymentMethod()).isEqualTo(PaymentMethod.NONE),
+                () -> assertThat(order.getPaymentAmount()).isZero(),
+                () -> assertThat(order.getPaidAt()).isEqualTo(now)
+            );
+        }
+
+        @DisplayName("만료된 주문이면, ORDER_EXPIRED 예외가 발생하고 DRAFT 로 남는다. (ORD-08)")
+        @Test
+        void throwsExpired() {
+            Order order = draft(List.of(line(1L, 0L, 1)));
+
+            CoreException result = assertThrows(CoreException.class, () -> order.confirmWithoutPayment(CREATED_AT.plusMinutes(30)));
+
+            assertAll(
+                () -> assertThat(result.getErrorCode()).isEqualTo(OrderErrorCode.ORDER_EXPIRED),
+                () -> assertThat(order.getStatus()).isEqualTo(OrderStatus.DRAFT)
+            );
+        }
+
+        @DisplayName("결제할 금액이 있으면, 상태 오류로 막고 DRAFT 로 남는다.")
+        @Test
+        void throwsIllegalState_whenAmountIsNotZero() {
+            Order order = draft(List.of(line(1L, 1_000L, 1)));
+
+            assertThrows(IllegalStateException.class, () -> order.confirmWithoutPayment(CREATED_AT.plusMinutes(1)));
+
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.DRAFT);
+        }
+    }
+
     @DisplayName("PG 결과를 반영할 때, ")
     @Nested
     class SettlePayment {

@@ -80,6 +80,15 @@ public class Payment extends BaseEntity {
         return new Payment(orderId, attemptKey, amount);
     }
 
+    /** 0원 주문의 시도. 시도 키 멱등성을 PG 주문과 같게 유지하려고 남김 (D-68) */
+    public static Payment notRequired(Long orderId, String attemptKey) {
+        validateAttemptKey(attemptKey);
+        Payment payment = new Payment(orderId, attemptKey, 0L);
+        payment.status = PaymentStatus.NOT_REQUIRED;
+        payment.reservationStatus = ReservationStatus.CONSUMED;
+        return payment;
+    }
+
     /** 비었거나 64자를 넘으면 거절함. 주문을 다루기 전에 부를 수 있도록 따로 둠 (5주차 설계 7) */
     public static void validateAttemptKey(String attemptKey) {
         if (attemptKey == null || attemptKey.isBlank() || attemptKey.length() > MAX_ATTEMPT_KEY_LENGTH) {
@@ -105,7 +114,7 @@ public class Payment extends BaseEntity {
                 yield ReservationChange.NONE;
             }
             // UNKNOWN 은 발송자 자신의 E3 로만 들어오므로 생성 응답이 다시 오지 않음. 종결 뒤 늦은 응답은 효과 없음
-            case UNKNOWN, SUCCESS, FAILED, REJECTED -> ReservationChange.NONE;
+            case UNKNOWN, SUCCESS, FAILED, REJECTED, NOT_REQUIRED -> ReservationChange.NONE;
         };
     }
 
@@ -149,8 +158,8 @@ public class Payment extends BaseEntity {
             case PENDING -> applyLookupToPending(event, now);
             case SUCCESS -> applyLookupToTerminal(event == LookupEvent.FAILED || event.isConflict(), now);
             case FAILED -> applyLookupToTerminal(event == LookupEvent.SUCCESS || event.isConflict(), now);
-            // 거래를 만들지 않았다고 확정한 시도에서 거래가 발견되면 모순
-            case REJECTED -> applyLookupToTerminal(event != LookupEvent.NONE, now);
+            // 거래가 없어야 할 시도에서 거래가 발견되면 모순
+            case REJECTED, NOT_REQUIRED -> applyLookupToTerminal(event != LookupEvent.NONE, now);
         };
     }
 

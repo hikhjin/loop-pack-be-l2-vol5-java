@@ -51,6 +51,15 @@ public class PaymentService {
     }
 
     @Transactional
+    public Payment recordNotRequired(Long orderId, String attemptKey) {
+        try {
+            return paymentRepository.save(Payment.notRequired(orderId, attemptKey));
+        } catch (DataIntegrityViolationException e) {
+            throw new CoreException(PaymentErrorCode.PAYMENT_ATTEMPT_CONFLICT);
+        }
+    }
+
+    @Transactional
     public ReservationChange apply(Payment payment, PaymentCreateResult result) {
         return payment.apply(result, ZonedDateTime.now(clock));
     }

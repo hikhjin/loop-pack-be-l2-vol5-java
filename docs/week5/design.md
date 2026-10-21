@@ -28,7 +28,7 @@
 | `CONFIRMED` | 결제 완료 | TX B의 검증된 SUCCESS, 또는 이전 POINT 확정 |
 | `PAYMENT_FAILED` | 결제가 확정 실패함 | TX B에서 결제 상태가 `FAILED` 또는 `REJECTED` 로 종결됨 |
 
-- **`paymentMethod` 컬럼을 추가한다(`POINT` · `PG`).** DRAFT는 비어 있다. 이전 CONFIRMED 주문은 모두 포인트로 결제했으므로 `POINT` 다.
+- **`paymentMethod` 컬럼을 추가한다(`POINT` · `PG` · `NONE`).** DRAFT는 비어 있다. 이전 CONFIRMED 주문은 모두 포인트로 결제했으므로 `POINT` 다. `NONE` 은 결제할 금액이 없어 PG 를 부르지 않은 0원 주문이다(D-68).
   - 로컬 · 테스트는 `ddl-auto: create` 라 기존 행이 없다. 운영(`ddl-auto: none`)은 컬럼 추가와 함께 `UPDATE orders SET payment_method = 'POINT' WHERE status = 'CONFIRMED'` 가 필요하다.
 - **만료(ORD-08)는 DRAFT의 확정 시작에만 적용한다.** PAYMENT_PENDING 주문은 외부 결과가 나올 때까지 만료로 끝내지 않는다. 시간 경과만으로 실패 처리하면 아직 성공할 거래의 재고를 다른 주문에 팔 수 있다.
 - **`paidAt` 은 SUCCESS를 내부에 반영한 시각이다.** PG가 승인한 시각이 아니다. 테스트 PG 계약에 승인 시각이 없다.
@@ -60,6 +60,7 @@
 | `SUCCESS` | 해당 거래의 SUCCESS를 조회로 확인함 | 있음 | ✓ |
 | `FAILED` | 해당 거래의 FAILED를 조회로 확인함 | 있음 | ✓ |
 | `REJECTED` | PG가 거래를 만들지 않았다고 확정해 거절함 (효과 0건) | 없음 | ✓ |
+| `NOT_REQUIRED` | 결제할 금액이 없어 PG 를 부르지 않고 확정함 (0원 주문, D-68) | 없음 | ✓ |
 
 - **PENDING은 상대가 처리 중이라는 사실이고, UNKNOWN은 우리가 결과를 모른다는 사실이다.** 둘 다 새 결제를 만들 근거가 아니다.
 - **`REQUESTED` 를 UNKNOWN과 나눠 두는 이유:** 발송 권한을 얻은 뒤 생성 응답을 반영하기 전에 멈춘 시도를 운영에서 구분해 볼 수 있다. 외부 결과에 대한 의미는 UNKNOWN과 같다. 둘 다 조회로만 진행한다.
@@ -187,6 +188,14 @@ stateDiagram-v2
 | REJECTED + L1~L3 (거래가 발견됨) | 그대로 | 기록. 테스트 PG 계약상 일어나지 않아야 하는 모순 |
 | L1 · L4 · L6 (SUCCESS · FAILED에서) | 그대로 | 없음 |
 
+**NOT_REQUIRED (종결, 0원 주문)**
+
+| 사건 | 다음 상태 | 효과 |
+|---|---|---|
+| E1~E3 | 일어나지 않음 | 생성 요청을 보내지 않음 |
+| L4 · L6 | 그대로 | 없음 |
+| L1~L3 · L5 (거래가 발견됨) | 그대로 | 기록 (`TERMINAL_CONTRADICTION`). 보낸 적 없는 주문의 거래라는 모순 |
+
 - **종결 상태에서는 조회하지 않는 것이 기본이다(4.2).** 위 행은 동시에 들어온 조회 · 늦은 응답이 종결 뒤에 적용되는 경우를 다룬다.
 
 #### 표 밖에서 지킬 규칙
@@ -220,7 +229,7 @@ stateDiagram-v2
 
 - **`product.stock` 은 가용 재고다.** 예약하면 줄고, 성공해도 그대로이며, 확정 실패 때만 한 번 늘어난다.
   - 재고 5에서 2를 예약하면 3, 성공 후에도 3, 확정 실패 후 5다. 중복 실패 알림으로 7이 되거나 UNKNOWN에서 5가 되면 잘못이다.
-- **예약 상태는 결제 상태와 같은 전이에서만 바뀐다.** `SUCCESS` ⇔ `CONSUMED`, `FAILED` · `REJECTED` ⇔ `RELEASED` 이고, 종결 전(REQUESTED · UNKNOWN · PENDING)에는 충돌 기록이 있어도 항상 `RESERVED` 다. 두 상태를 따로 바꾸는 메서드를 두지 않는다.
+- **예약 상태는 결제 상태와 같은 전이에서만 바뀐다.** `SUCCESS` · `NOT_REQUIRED` ⇔ `CONSUMED`, `FAILED` · `REJECTED` ⇔ `RELEASED` 이고, 종결 전(REQUESTED · UNKNOWN · PENDING)에는 충돌 기록이 있어도 항상 `RESERVED` 다. 두 상태를 따로 바꾸는 메서드를 두지 않는다.
 - **결제 상태와 따로 두는 이유:** "결제 결과를 모름"과 "재고를 잡고 있음"은 다른 질문이다. 장기 미확인처럼 둘을 나눠 판단해야 하는 장면(8장)에서 각각 읽을 수 있다.
 - **반환은 품목 순서가 아니라 상품 ID 오름차순으로 잠근 뒤 수행한다(4.2).**
 
@@ -319,6 +328,16 @@ OrderPaymentFacade.confirm (트랜잭션 없음)
 - **재고 부족 · 삭제 상품 · 만료 · 잘못된 입력이면 PG를 호출하지 않는다.** TX A가 통째로 rollback된다.
 - **확인 순서는 3주차 그대로(D-16)이고 잔액 확인만 빠진다:** 만료 → 상품 삭제 여부 → 재고.
 - **이전 POINT 확정 주문의 confirm** 은 Payment가 없고 DRAFT가 아니므로 기존 `ORDER_ALREADY_CONFIRMED` 다.
+- **0원 주문은 PG 를 부르지 않고 TX A 에서 바로 확정한다(D-68).** 재고를 확보한 뒤 Payment 를 `NOT_REQUIRED` · `CONSUMED` 로 기록하고, 주문은 CONFIRMED(`paymentMethod=NONE`, 결제액 0, 결제 시각)가 된다.
+  - 움직일 돈이 없고, 실제 PG 는 최소 결제 금액을 두는 경우가 많다. 0원 승인을 계약에 없는 형식으로 거절하면 E3 가 되어 주문이 미확인에 갇힌다.
+  - Payment 를 남기는 이유: 시도 키 멱등성을 PG 주문과 같게 유지한다. 같은 키 재요청은 저장 상태(200), 다른 키는 충돌이다.
+
+| 버린 대안 (0원 주문) | 포기한 이유 |
+|---|---|
+| PG 에 금액 0 으로 보냄 | 실무와 다르고, 실제 PG 의 거절이 결과 미확인으로 이어져 예약이 무기한 점유될 수 있다 |
+| Payment 없이 주문만 확정 | 같은 시도 키 재요청이 `ORDER_ALREADY_CONFIRMED` 가 되어 0원 주문만 멱등 계약이 달라진다 |
+| 주문에 시도 키 컬럼 추가 | 시도 키가 두 곳에 생겨 유일 제약 · 충돌 판단을 양쪽에서 지켜야 한다 |
+| 0원 주문 확정 거절 | 0원 상품을 허용한 기존 정책(D-30)과 충돌한다 |
 - **발송 기록 뒤 프로세스가 멈추면** Payment는 REQUESTED로 남는다. 실제 발송이 0회일 수도, 거래가 이미 있을 수도 있다. 재발송보다 중복 결제 방지를 우선해 create를 다시 보내지 않고 조회(4.2)로만 진행한다.
 
 ### 4.2 결과 확인 (`reconcile` · `callback`)
@@ -416,7 +435,7 @@ commit ── 이후 품절이 풀린 상품의 캐시 무효화
 
 | API | 성공 | 대표 오류 |
 |---|---|---|
-| `POST /api/v1/orders/{orderId}/confirm` 본문 `{paymentAttemptKey, cardType, cardNo}` | 202 (REQUESTED · UNKNOWN · PENDING), 200 (SUCCESS · FAILED · REJECTED) | `ORDER_NOT_FOUND` 404, `ORDER_ALREADY_CONFIRMED` 409, `ORDER_EXPIRED` 409, `PRODUCT_NOT_FOUND` 404, `OUT_OF_STOCK` 409, `PAYMENT_ATTEMPT_CONFLICT` 409, `INVALID_PAYMENT_REQUEST` 400 |
+| `POST /api/v1/orders/{orderId}/confirm` 본문 `{paymentAttemptKey, cardType, cardNo}` | 202 (REQUESTED · UNKNOWN · PENDING), 200 (SUCCESS · FAILED · REJECTED · NOT_REQUIRED) | `ORDER_NOT_FOUND` 404, `ORDER_ALREADY_CONFIRMED` 409, `ORDER_EXPIRED` 409, `PRODUCT_NOT_FOUND` 404, `OUT_OF_STOCK` 409, `PAYMENT_ATTEMPT_CONFLICT` 409, `INVALID_PAYMENT_REQUEST` 400 |
 | `GET /api/v1/orders/{orderId}` | 200. 결제수단 · 결제 상태 · 결과. 새 결제 요청을 만들지 않음 | `ORDER_NOT_FOUND` 404 |
 | `POST /api/v1/orders/{orderId}/payment/reconcile` | 202 (미종결), 200 (종결) | `ORDER_NOT_FOUND` 404, `PAYMENT_NOT_FOUND` 404 |
 | `POST /api/v1/payments/callback` 본문 `{orderId(providerOrderId), transactionKey, status}` | 200 (처리함. 미종결 유지 포함) | `PAYMENT_NOT_FOUND` 404 |
@@ -492,3 +511,4 @@ commit ── 이후 품절이 풀린 상품의 캐시 무효화
 | D-65 | 충돌 · 이상은 결제 상태가 아니라 `conflictReason` · `conflictedAt` 기록으로 남긴다. 결제 상태는 "외부 결과를 얼마나 아는가" 한 축만 표현한다 |
 | D-66 | 결과 조회는 거래 키를 알아도 항상 주문 단위 목록(`?orderId=`)으로 한다 |
 | D-67 | 효과 0건 확정 거절은 `FAILED` 와 나눈 종결 상태 `REJECTED` 로 둔다. 주문 · 예약 효과는 FAILED와 같다 |
+| D-68 | 0원 주문은 PG 를 부르지 않고 TX A 에서 바로 확정한다. Payment 는 `NOT_REQUIRED` · `CONSUMED` 로 남겨 시도 키 멱등성을 유지하고, 결제수단은 `NONE` 이다 |

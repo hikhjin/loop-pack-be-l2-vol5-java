@@ -16,7 +16,9 @@ public enum PaymentStatus {
     /** 해당 거래의 FAILED 를 조회로 확인함 */
     FAILED(true),
     /** PG 가 거래를 만들지 않았다고 확정해 거절함 (효과 0건, D-67) */
-    REJECTED(true);
+    REJECTED(true),
+    /** 0원 주문이라 PG 를 부르지 않고 확정함 (D-68) */
+    NOT_REQUIRED(true);
 
     private final boolean terminal;
 

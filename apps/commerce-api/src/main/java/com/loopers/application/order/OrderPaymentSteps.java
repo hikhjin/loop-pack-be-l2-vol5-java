@@ -80,6 +80,13 @@ public class OrderPaymentSteps {
                 soldOutProductIds.add(product.getId());
             }
         }
+        // 0원 주문은 PG 를 부르지 않고 여기서 확정함 (D-68)
+        if (order.getTotalAmount() == 0) {
+            Payment payment = paymentService.recordNotRequired(order.getId(), attemptKey);
+            orderService.confirmWithoutPayment(order);
+            return new Started(OrderInfo.from(order, payment), false, payment.getProviderOrderId(), 0L,
+                soldOutBrandIds, soldOutProductIds);
+        }
         Payment payment = paymentService.request(order.getId(), attemptKey, order.getTotalAmount());
         orderService.startPayment(order);
         return new Started(OrderInfo.from(order, payment), true, payment.getProviderOrderId(), payment.getAmount(),

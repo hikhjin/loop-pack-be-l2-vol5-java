@@ -172,6 +172,18 @@ public class Order extends BaseEntity {
         this.paymentMethod = PaymentMethod.PG;
     }
 
+    /** 0원 주문은 PG 없이 바로 확정함 (D-68) */
+    public void confirmWithoutPayment(ZonedDateTime now) {
+        validateConfirmable(now);
+        if (totalAmount != 0) {
+            throw new IllegalStateException("결제할 금액이 있는 주문: " + totalAmount);
+        }
+        this.status = OrderStatus.CONFIRMED;
+        this.paymentMethod = PaymentMethod.NONE;
+        this.paymentAmount = 0L;
+        this.paidAt = now;
+    }
+
     /**
      * 검증한 SUCCESS 를 반영함. 결제 시도의 종결 전이와 같은 TX 에서만 불림 (5주차 설계 4.3).
      * 결제 대기가 아닌데 불리면 결제 시도와 주문 상태가 어긋난 것이라 업무 오류가 아니라 상태 오류로 막음

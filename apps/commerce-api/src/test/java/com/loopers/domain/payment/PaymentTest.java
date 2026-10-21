@@ -64,6 +64,10 @@ class PaymentTest {
         return payment;
     }
 
+    private static Payment notRequired() {
+        return Payment.notRequired(ORDER_ID, "attempt-1");
+    }
+
     // 사건
 
     private static ProviderTransaction tx(ProviderTransactionStatus status) {
@@ -133,6 +137,23 @@ class PaymentTest {
                 () -> assertThat(payment.getTransactionKey()).isNull(),
                 () -> assertThat(payment.getAmount()).isEqualTo(AMOUNT),
                 () -> assertThat(payment.getConflictReason()).isNull()
+            );
+        }
+
+        @DisplayName("0원 주문이면, 금액 0 · 거래 키 없이 NOT_REQUIRED · CONSUMED 로 종결된다. (D-68)")
+        @Test
+        void createsNotRequiredAndConsumed_forZeroAmountOrder() {
+            // act
+            Payment payment = notRequired();
+
+            // assert
+            assertAll(
+                () -> assertThat(payment.getStatus()).isEqualTo(PaymentStatus.NOT_REQUIRED),
+                () -> assertThat(payment.getStatus().isTerminal()).isTrue(),
+                () -> assertThat(payment.getReservationStatus()).isEqualTo(ReservationStatus.CONSUMED),
+                () -> assertThat(payment.getAmount()).isZero(),
+                () -> assertThat(payment.getTransactionKey()).isNull(),
+                () -> assertThat(payment.getProviderOrderId()).isEqualTo(PROVIDER_ORDER_ID)
             );
         }
 
@@ -422,11 +443,30 @@ class PaymentTest {
             assertLookupRow(PaymentTest::rejected, lookup, status, reservation, change, conflict);
         }
 
+        static Stream<Arguments> notRequiredRows() {
+            return Stream.of(
+                row(Lookup.L1_PENDING, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.L2_SUCCESS, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.L3_FAILED, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.L4_NONE, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, null),
+                row(Lookup.L5_MULTIPLE, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, PaymentConflict.TERMINAL_CONTRADICTION),
+                row(Lookup.L6_UNAVAILABLE, PaymentStatus.NOT_REQUIRED, ReservationStatus.CONSUMED, ReservationChange.NONE, null)
+            );
+        }
+
+        @DisplayName("NOT_REQUIRED(0원 주문)에서 거래가 발견되면, 상태는 그대로 두고 모순을 기록한다. (D-68)")
+        @ParameterizedTest(name = "{0} → {1}, {2}, {3}, 충돌 {4}")
+        @MethodSource("notRequiredRows")
+        void notRequiredFollowsTable(Lookup lookup, PaymentStatus status, ReservationStatus reservation, ReservationChange change, PaymentConflict conflict) {
+            assertLookupRow(PaymentTest::notRequired, lookup, status, reservation, change, conflict);
+        }
+
         static Stream<Arguments> terminalPayments() {
             return Stream.of(
                 Arguments.of("SUCCESS", (Supplier<Payment>) PaymentTest::succeeded),
                 Arguments.of("FAILED", (Supplier<Payment>) PaymentTest::failed),
-                Arguments.of("REJECTED", (Supplier<Payment>) PaymentTest::rejected)
+                Arguments.of("REJECTED", (Supplier<Payment>) PaymentTest::rejected),
+                Arguments.of("NOT_REQUIRED", (Supplier<Payment>) PaymentTest::notRequired)
             );
         }
 

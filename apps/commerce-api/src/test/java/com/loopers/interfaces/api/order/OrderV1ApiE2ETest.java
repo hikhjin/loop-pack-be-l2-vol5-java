@@ -290,6 +290,23 @@ class OrderV1ApiE2ETest {
             assertThat(pg.createCount()).isEqualTo(1);
         }
 
+        @DisplayName("0원 주문이면, PG 를 부르지 않고 200 과 CONFIRMED · 결제수단 NONE · NOT_REQUIRED 를 돌려준다. (D-68)")
+        @Test
+        void confirmsZeroAmountOrderWithoutPg() throws Exception {
+            Product free = saveProduct(brandJpaRepository.save(new Brand("무료 브랜드", null)), "무료 상품", 0L, 5);
+            Long orderId = createOrderId(itemsOf(free.getId(), 2));
+
+            confirm(user, orderId, "attempt-1")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.paymentMethod").value("NONE"))
+                .andExpect(jsonPath("$.data.paymentStatus").value("NOT_REQUIRED"))
+                .andExpect(jsonPath("$.data.paymentAmount").value(0));
+
+            assertThat(stockOf(free)).isEqualTo(3);
+            assertThat(pg.createCount()).isZero();
+        }
+
         @DisplayName("타인의 주문이면 404 와 ORDER_NOT_FOUND 를 돌려준다.")
         @Test
         void rejectsOthersOrder() throws Exception {

@@ -493,6 +493,73 @@ class OrderPaymentFacadeTest {
         }
     }
 
+    @DisplayName("0원 주문을 확정할 때, (D-68)")
+    @Nested
+    class ZeroAmount {
+        @DisplayName("PG 를 부르지 않고 재고를 확보해 바로 CONFIRMED · 결제수단 NONE · 결제액 0 이 된다.")
+        @Test
+        void confirmsWithoutCallingPg() {
+            // arrange
+            Product free = saveProduct(0L, 5);
+            Order order = createOrder(line(free, 2));
+
+            // act
+            OrderInfo result = confirm(USER_ID, order, "attempt-1");
+
+            // assert
+            assertAll(
+                () -> assertThat(result.status()).isEqualTo("CONFIRMED"),
+                () -> assertThat(result.paymentMethod()).isEqualTo("NONE"),
+                () -> assertThat(result.paymentStatus()).isEqualTo("NOT_REQUIRED"),
+                () -> assertThat(result.paymentInProgress()).isFalse(),
+                () -> assertThat(order.getPaymentAmount()).isZero(),
+                () -> assertThat(order.getPaidAt()).isEqualTo(CREATED_AT),
+                () -> assertThat(free.getStock()).isEqualTo(3),
+                () -> assertThat(paymentOf(order).getReservationStatus()).isEqualTo(ReservationStatus.CONSUMED),
+                () -> assertThat(gateway.createRequests()).isEmpty()
+            );
+        }
+
+        @DisplayName("같은 시도 키로 다시 보내면 저장된 상태를 돌려주고, 다른 키면 PAYMENT_ATTEMPT_CONFLICT 예외가 발생한다. 재고는 한 번만 확보한다.")
+        @Test
+        void keepsAttemptKeyContract() {
+            // arrange
+            Product free = saveProduct(0L, 5);
+            Order order = createOrder(line(free, 2));
+            confirm(USER_ID, order, "attempt-1");
+
+            // act
+            OrderInfo repeated = confirm(USER_ID, order, "attempt-1");
+            CoreException conflict = assertThrows(CoreException.class, () -> confirm(USER_ID, order, "attempt-2"));
+
+            // assert
+            assertAll(
+                () -> assertThat(repeated.status()).isEqualTo("CONFIRMED"),
+                () -> assertThat(repeated.paymentStatus()).isEqualTo("NOT_REQUIRED"),
+                () -> assertThat(conflict.getErrorCode()).isEqualTo(PaymentErrorCode.PAYMENT_ATTEMPT_CONFLICT),
+                () -> assertThat(free.getStock()).isEqualTo(3),
+                () -> assertThat(paymentRepository.count()).isEqualTo(1)
+            );
+        }
+
+        @DisplayName("결과를 확인해도 PG 를 조회하지 않고 저장된 상태를 돌려준다.")
+        @Test
+        void reconcileDoesNotLookUp() {
+            // arrange
+            Order order = createOrder(line(saveProduct(0L, 5), 1));
+            confirm(USER_ID, order, "attempt-1");
+
+            // act
+            OrderInfo result = orderPaymentFacade.reconcile(USER_ID, order.getId());
+
+            // assert
+            assertAll(
+                () -> assertThat(result.paymentStatus()).isEqualTo("NOT_REQUIRED"),
+                () -> assertThat(gateway.lookups()).isEmpty()
+            );
+        }
+    }
+
     @DisplayName("결제 결과를 확인할 때, ")
     @Nested
     class Reconcile {

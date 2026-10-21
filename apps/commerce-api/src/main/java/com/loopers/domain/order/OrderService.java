@@ -50,6 +50,11 @@ public class OrderService {
         order.startPayment(ZonedDateTime.now(clock));
     }
 
+    @Transactional
+    public void confirmWithoutPayment(Order order) {
+        order.confirmWithoutPayment(ZonedDateTime.now(clock));
+    }
+
     /** 검증한 SUCCESS 를 반영함. 결제 시각은 내부에 반영한 시각임 (5주차 설계 2.1) */
     @Transactional
     public void confirmPaid(Order order, long paymentAmount) {
