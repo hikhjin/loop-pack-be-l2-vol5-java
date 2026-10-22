@@ -6,6 +6,7 @@ import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductService;
 import com.loopers.domain.product.ProductSort;
 import com.loopers.utils.DatabaseCleanUp;
+import com.loopers.support.redis.ProductCacheConnection;
 import com.loopers.utils.RedisCleanUp;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -58,6 +59,9 @@ class ProductFacadeCacheTest {
     private DatabaseCleanUp databaseCleanUp;
 
     @Autowired
+    private ProductCacheConnection productCacheConnection;
+
+    @Autowired
     private RedisCleanUp redisCleanUp;
 
     private Long brandId;
@@ -65,6 +69,7 @@ class ProductFacadeCacheTest {
     /** 브랜드 하나에 첫 페이지를 넘는 25개, 다른 브랜드에 3개. 가격 · 재고 · 좋아요가 섞이게 둔다 */
     @BeforeEach
     void setUp() {
+        productCacheConnection.connect();
         brandId = createBrandWithProducts("브랜드", 25);
         createBrandWithProducts("다른 브랜드", 3);
     }

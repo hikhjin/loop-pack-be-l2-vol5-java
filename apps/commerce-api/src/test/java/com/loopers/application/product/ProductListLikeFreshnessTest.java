@@ -5,6 +5,7 @@ import com.loopers.application.like.LikeFacade;
 import com.loopers.domain.product.ProductService;
 import com.loopers.domain.product.ProductSort;
 import com.loopers.utils.DatabaseCleanUp;
+import com.loopers.support.redis.ProductCacheConnection;
 import com.loopers.utils.RedisCleanUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +51,9 @@ class ProductListLikeFreshnessTest {
     private DatabaseCleanUp databaseCleanUp;
 
     @Autowired
+    private ProductCacheConnection productCacheConnection;
+
+    @Autowired
     private RedisCleanUp redisCleanUp;
 
     private Long brandId;
@@ -60,6 +64,7 @@ class ProductListLikeFreshnessTest {
     /** 좋아요 2 · 1 · 0 개 상품 */
     @BeforeEach
     void setUp() {
+        productCacheConnection.connect();
         brandId = brandFacade.createBrand("브랜드", null).id();
         popular = adminProductFacade.createProduct(brandId, "인기 상품", 1_000L).id();
         middle = adminProductFacade.createProduct(brandId, "보통 상품", 1_000L).id();

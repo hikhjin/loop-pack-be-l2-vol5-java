@@ -3,8 +3,10 @@ package com.loopers.infrastructure.product;
 import com.loopers.config.ProductCacheRedisConfig;
 import com.loopers.domain.product.ProductSort;
 import com.loopers.domain.product.ProductView;
+import com.loopers.support.redis.ProductCacheConnection;
 import com.loopers.utils.RedisCleanUp;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -51,7 +53,15 @@ class RedisProductListCacheTest {
     private Clock clock;
 
     @Autowired
+    private ProductCacheConnection productCacheConnection;
+
+    @Autowired
     private RedisCleanUp redisCleanUp;
+
+    @BeforeEach
+    void connectCache() {
+        productCacheConnection.connect();
+    }
 
     @AfterEach
     void tearDown() {
