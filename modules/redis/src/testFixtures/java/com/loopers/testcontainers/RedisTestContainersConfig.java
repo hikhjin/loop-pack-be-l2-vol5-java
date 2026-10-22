@@ -8,11 +8,10 @@ import org.testcontainers.utility.DockerImageName;
 public class RedisTestContainersConfig {
     private static final RedisContainer redisContainer = new RedisContainer(DockerImageName.parse("redis:latest"));
 
+    // 생성자에서 넣으면 RedisConfig 가 먼저 만들어질 때 기본 포트로 묶이므로 클래스 초기화 때 넣음 (MySqlTestContainersConfig 와 같음)
     static {
         redisContainer.start();
-    }
 
-    public RedisTestContainersConfig() {
         System.setProperty("datasource.redis.database", "0");
         System.setProperty("datasource.redis.master.host", redisContainer.getHost());
         System.setProperty("datasource.redis.master.port", String.valueOf(redisContainer.getFirstMappedPort()));
