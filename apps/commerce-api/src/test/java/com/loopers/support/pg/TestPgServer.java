@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,6 +49,21 @@ public final class TestPgServer implements AutoCloseable {
         DELAY,
         /** 정한 상태 코드 · 본문으로 응답 */
         RESPOND
+    }
+
+    /** 순서를 정한 조회 응답 한 건 */
+    public record LookupStep(LookupBehavior behavior, int status, String body, Duration delay) {
+        public static LookupStep normal() {
+            return new LookupStep(LookupBehavior.NORMAL, 200, null, Duration.ZERO);
+        }
+
+        public static LookupStep delay(Duration delay) {
+            return new LookupStep(LookupBehavior.DELAY, 200, null, delay);
+        }
+
+        public static LookupStep respond(int status, String body) {
+            return new LookupStep(LookupBehavior.RESPOND, status, body, Duration.ZERO);
+        }
     }
 
     /** rawQuery 는 받은 그대로, queryParam 은 디코딩한 값 */
@@ -83,6 +100,7 @@ public final class TestPgServer implements AutoCloseable {
     private final AtomicInteger createCount = new AtomicInteger();
     private final AtomicInteger lookupCount = new AtomicInteger();
     private final AtomicInteger sequence = new AtomicInteger();
+    private final Queue<LookupStep> lookupSteps = new ConcurrentLinkedQueue<>();
 
     private volatile CreateBehavior createBehavior = CreateBehavior.ACCEPT;
     private volatile LookupBehavior lookupBehavior = LookupBehavior.NORMAL;
@@ -134,6 +152,7 @@ public final class TestPgServer implements AutoCloseable {
         lookupCount.set(0);
         createBehavior = CreateBehavior.ACCEPT;
         lookupBehavior = LookupBehavior.NORMAL;
+        lookupSteps.clear();
         delay = Duration.ZERO;
     }
 
@@ -173,6 +192,11 @@ public final class TestPgServer implements AutoCloseable {
         this.fixedLookupStatus = status;
         this.fixedLookupBody = body;
         this.lookupBehavior = LookupBehavior.RESPOND;
+    }
+
+    /** 다음 조회부터 정한 순서대로 응답하고, 다 쓰면 고정 응답 방식으로 돌아감. 무작위 대신 순서로 장애를 냄 */
+    public void lookupWillRespondInOrder(LookupStep... steps) {
+        lookupSteps.addAll(List.of(steps));
     }
 
     /** 복수 거래 · 불일치 장면용 */
@@ -280,13 +304,17 @@ public final class TestPgServer implements AutoCloseable {
 
     private void handleList(HttpExchange exchange, String orderId) throws IOException, InterruptedException {
         lookupCount.incrementAndGet();
-        switch (lookupBehavior) {
+        LookupStep step = lookupSteps.poll();
+        if (step == null) {
+            step = new LookupStep(lookupBehavior, fixedLookupStatus, fixedLookupBody, delay);
+        }
+        switch (step.behavior()) {
             case NORMAL -> respond(exchange, 200, listJson(orderId));
             case DELAY -> {
-                Thread.sleep(delay.toMillis());
+                Thread.sleep(step.delay().toMillis());
                 respond(exchange, 200, listJson(orderId));
             }
-            case RESPOND -> respond(exchange, fixedLookupStatus, fixedLookupBody);
+            case RESPOND -> respond(exchange, step.status(), step.body());
         }
     }
 

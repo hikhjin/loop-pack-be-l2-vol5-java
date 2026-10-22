@@ -1,6 +1,5 @@
 package com.loopers.application.order.facade;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.domain.brand.Brand;
 import com.loopers.domain.order.Order;
@@ -15,9 +14,9 @@ import com.loopers.domain.point.Point;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductDetailCache;
 import com.loopers.domain.product.ProductListCache;
-import com.loopers.infrastructure.payment.client.TestPgPaymentGateway;
-import com.loopers.infrastructure.payment.client.TestPgProperties;
 import com.loopers.support.error.CoreException;
+import com.loopers.infrastructure.payment.client.TestPgLookupPolicyProperties;
+import com.loopers.support.pg.TestPgGateways;
 import com.loopers.support.pg.TestPgServer;
 import com.loopers.utils.DatabaseCleanUp;
 import jakarta.persistence.EntityManager;
@@ -57,9 +56,6 @@ class PaymentIntegrationTest {
 
     @Autowired
     private ProductDetailCache productDetailCache;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Autowired
     private EntityManager entityManager;
@@ -448,15 +444,60 @@ class PaymentIntegrationTest {
         }
     }
 
+    @DisplayName("조회 회로가 열리면, ")
+    @Nested
+    class CircuitOpen {
+        private static final Duration OPEN_WAIT = Duration.ofMillis(300);
+
+        /** 재조회 없이 표본 2 건 중 실패 50% 이상이면 OPEN 이 되는 짧은 회로 */
+        private OrderPaymentFacade facadeWithShortCircuit() {
+            TestPgLookupPolicyProperties policy = new TestPgLookupPolicyProperties(1, Duration.ofMillis(10), 2, 2, 2, 50, OPEN_WAIT, 1);
+            return new OrderPaymentFacade(orderPaymentSteps,
+                TestPgGateways.gateway(pg.baseUrl(), Duration.ofSeconds(1), policy), productListCache, productDetailCache);
+        }
+
+        @DisplayName("OPEN 동안은 PG 를 조회하지 않고 확인 불가와 저장된 상태를 돌려주며, 대기 뒤 조회를 재개해 확정한다.")
+        @Test
+        void keepsStoredStateWhileOpen_andResumesAfterWait() throws InterruptedException {
+            // arrange
+            OrderPaymentFacade facade = facadeWithShortCircuit();
+            Order order = persistDraft(2);
+            confirm(order);
+            pg.lookupWillRespond(500, "{}");
+            facade.reconcile(USER_ID, order.getId());
+            facade.reconcile(USER_ID, order.getId());
+            pg.lookupNormally();
+            pg.complete(onlyTransactionKeyOf(order), "SUCCESS");
+            int lookupsWhenOpened = pg.lookupCount();
+
+            // act
+            OrderInfo whileOpen = facade.reconcile(USER_ID, order.getId());
+            List<String> stateWhileOpen = paymentStateOf(order);
+            int lookupsWhileOpen = pg.lookupCount();
+            Thread.sleep(OPEN_WAIT.plusMillis(100).toMillis());
+            OrderInfo afterWait = facade.reconcile(USER_ID, order.getId());
+
+            // assert
+            assertAll(
+                () -> assertThat(whileOpen.paymentUnavailable()).isTrue(),
+                () -> assertThat(whileOpen.status()).isEqualTo("PAYMENT_PENDING"),
+                () -> assertThat(stateWhileOpen).containsExactly("PENDING", "RESERVED", "-"),
+                () -> assertThat(lookupsWhileOpen).isEqualTo(lookupsWhenOpened),
+                () -> assertThat(afterWait.status()).isEqualTo("CONFIRMED"),
+                () -> assertThat(pg.lookupCount()).isEqualTo(lookupsWhenOpened + 1),
+                () -> assertThat(stock()).isEqualTo(3),
+                () -> assertThat(pg.createCount()).isEqualTo(1)
+            );
+        }
+    }
+
     @DisplayName("발송 기록 뒤 프로세스가 멈췄다가 다시 뜨면, ")
     @Nested
     class Restart {
         /** 같은 DB · 테스트 PG 에 새 adapter · Facade 를 만들어 재시작을 흉내 냄 */
         private OrderPaymentFacade restartedFacade() {
-            TestPgPaymentGateway gateway = new TestPgPaymentGateway(new TestPgProperties(pg.baseUrl(),
-                "http://127.0.0.1:8080/api/v1/payments/callback", "135135", Duration.ofSeconds(1), Duration.ofSeconds(1), Duration.ofSeconds(1)),
-                objectMapper);
-            return new OrderPaymentFacade(orderPaymentSteps, gateway, productListCache, productDetailCache);
+            return new OrderPaymentFacade(orderPaymentSteps,
+                TestPgGateways.gateway(pg.baseUrl(), Duration.ofSeconds(1), TestPgGateways.defaultPolicy()), productListCache, productDetailCache);
         }
 
         @DisplayName("HTTP 를 보내기 전에 멈췄으면, 시도 · 예약이 REQUESTED · RESERVED 로 남고 조회 0 건이어도 create 를 다시 보내지 않는다.")

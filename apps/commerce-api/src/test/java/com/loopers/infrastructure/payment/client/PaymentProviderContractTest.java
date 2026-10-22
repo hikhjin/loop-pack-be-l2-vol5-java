@@ -7,6 +7,7 @@ import com.loopers.domain.payment.gateway.PaymentGatewayRequest;
 import com.loopers.domain.payment.vo.PaymentLookupResult;
 import com.loopers.domain.payment.vo.ProviderTransaction;
 import com.loopers.domain.payment.enums.ProviderTransactionStatus;
+import com.loopers.support.pg.TestPgGateways;
 import com.loopers.support.pg.TestPgServer;
 import com.loopers.support.pg.TestPgServer.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
@@ -25,7 +26,7 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-/** HTTP 형식 · 응답 분류 · 숨은 재시도 여부만 확인함. 상태 전이는 PaymentTest 가 확인함 */
+/** HTTP 형식 · 응답 분류 · 숨은 재시도 여부만 확인함. 상태 전이는 PaymentTest, 재조회 · 회로는 TestPgLookupResilienceTest 가 확인함 */
 class PaymentProviderContractTest {
 
     private static final String ORDER_ID = "LP-ORD-0000000042";
@@ -49,9 +50,9 @@ class PaymentProviderContractTest {
         pg.close();
     }
 
+    /** 재조회 없이 한 번만 보내 응답 분류만 봄 */
     private TestPgPaymentGateway gatewayFor(String baseUrl) {
-        TestPgProperties properties = new TestPgProperties(baseUrl, CALLBACK_URL, "135135", Duration.ofSeconds(1), READ_TIMEOUT, READ_TIMEOUT);
-        return new TestPgPaymentGateway(properties, objectMapper);
+        return TestPgGateways.gateway(baseUrl, READ_TIMEOUT, TestPgGateways.singleAttemptPolicy());
     }
 
     @DisplayName("생성 요청은, ")
