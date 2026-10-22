@@ -4,14 +4,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.domain.brand.Brand;
 import com.loopers.domain.order.OrderStatus;
 import com.loopers.domain.payment.entity.Payment;
+import com.loopers.domain.payment.enums.PaymentStatus;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.user.User;
 import com.loopers.infrastructure.brand.BrandJpaRepository;
 import com.loopers.infrastructure.order.OrderJpaRepository;
+import com.loopers.infrastructure.payment.persistence.PaymentJpaRepository;
 import com.loopers.infrastructure.product.ProductJpaRepository;
 import com.loopers.infrastructure.user.UserJpaRepository;
 import com.loopers.support.pg.TestPgServer;
 import com.loopers.utils.DatabaseCleanUp;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -53,6 +56,12 @@ class PaymentV1ApiE2ETest {
 
     @Autowired
     private OrderJpaRepository orderJpaRepository;
+
+    @Autowired
+    private PaymentJpaRepository paymentJpaRepository;
+
+    @Autowired
+    private CircuitBreaker lookupCircuitBreaker;
 
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
@@ -103,6 +112,10 @@ class PaymentV1ApiE2ETest {
 
     private static String bodyOf(String providerOrderId, String transactionKey, String status) {
         return "{\"orderId\": \"" + providerOrderId + "\", \"transactionKey\": \"" + transactionKey + "\", \"status\": \"" + status + "\"}";
+    }
+
+    private PaymentStatus paymentStatusOf(Long orderId) {
+        return paymentJpaRepository.findByOrderId(orderId).orElseThrow().getStatus();
     }
 
     private OrderStatus orderStatusOf(Long orderId) {
@@ -179,6 +192,47 @@ class PaymentV1ApiE2ETest {
             callback("{\"transactionKey\": \"TX\", \"status\": \"SUCCESS\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.meta.errorCode").value("INVALID_PAYMENT_REQUEST"));
+        }
+
+        @DisplayName("PG 조회가 실패하면, 200 이고 본문에 주문 정보가 없으며 결제 · 주문 · 재고는 그대로이고 create 를 다시 보내지 않는다. (D-69)")
+        @Test
+        void acknowledgesWithoutChange_whenLookupFails() throws Exception {
+            // arrange
+            Long orderId = startPayment(2);
+            String transactionKey = transactionKeyOf(orderId);
+            pg.complete(transactionKey, "SUCCESS");
+            pg.lookupWillRespond(500, "{}");
+
+            // act
+            ResultActions result = callback(bodyOf(Payment.providerOrderIdOf(orderId), transactionKey, "SUCCESS"));
+
+            // assert
+            result.andExpect(status().isOk()).andExpect(jsonPath("$.data").doesNotExist());
+            assertThat(paymentStatusOf(orderId)).isEqualTo(PaymentStatus.PENDING);
+            assertThat(orderStatusOf(orderId)).isEqualTo(OrderStatus.PAYMENT_PENDING);
+            assertThat(stock()).isEqualTo(8);
+            assertThat(pg.lookupCount()).isEqualTo(3);
+            assertThat(pg.createCount()).isEqualTo(1);
+        }
+
+        @DisplayName("조회 회로가 OPEN 이면, 200 이고 PG 에 조회를 보내지 않으며 결제 · 주문 · 재고는 그대로다. (D-69)")
+        @Test
+        void acknowledgesWithoutLookup_whenCircuitIsOpen() throws Exception {
+            // arrange
+            Long orderId = startPayment(2);
+            String transactionKey = transactionKeyOf(orderId);
+            pg.complete(transactionKey, "SUCCESS");
+            lookupCircuitBreaker.transitionToOpenState();
+
+            // act
+            ResultActions result = callback(bodyOf(Payment.providerOrderIdOf(orderId), transactionKey, "SUCCESS"));
+
+            // assert
+            result.andExpect(status().isOk()).andExpect(jsonPath("$.data").doesNotExist());
+            assertThat(paymentStatusOf(orderId)).isEqualTo(PaymentStatus.PENDING);
+            assertThat(orderStatusOf(orderId)).isEqualTo(OrderStatus.PAYMENT_PENDING);
+            assertThat(stock()).isEqualTo(8);
+            assertThat(pg.lookupCount()).isZero();
         }
     }
 }
