@@ -1,6 +1,7 @@
 package com.loopers.application.order.facade;
 
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
+import com.loopers.application.product.AdminProductFacade;
 import com.loopers.domain.brand.Brand;
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderErrorCode;
@@ -50,6 +51,9 @@ class PaymentIntegrationTest {
 
     @Autowired
     private OrderPaymentSteps orderPaymentSteps;
+
+    @Autowired
+    private AdminProductFacade adminProductFacade;
 
     @Autowired
     private ProductListCache productListCache;
@@ -538,6 +542,68 @@ class PaymentIntegrationTest {
                 () -> assertThat(confirmed.status()).isEqualTo("CONFIRMED"),
                 () -> assertThat(stock()).isEqualTo(3),
                 () -> assertThat(pg.createCount()).isZero()
+            );
+        }
+    }
+
+    @DisplayName("결제 대기 중 관리자가 재고를 설정하면, (5주차 설계 6)")
+    @Nested
+    class AdminStockWhilePending {
+        /** 재고 5 에서 2 를 확보(가용 3)한 뒤 관리자가 가용 수량을 10 으로 정함 */
+        private Order pendingAfterAdminSetsStockTo10() {
+            Order order = persistDraft(2);
+            confirm(order);
+            adminProductFacade.changeStock(product.getId(), 10);
+            return order;
+        }
+
+        @DisplayName("설정한 값이 가용 재고가 되고, 예약은 그대로 남는다.")
+        @Test
+        void setsAvailableStock_keepingReservation() {
+            // act
+            Order order = pendingAfterAdminSetsStockTo10();
+
+            // assert
+            assertAll(
+                () -> assertThat(stock()).isEqualTo(10),
+                () -> assertThat(paymentStateOf(order)).containsExactly("PENDING", "RESERVED", "-")
+            );
+        }
+
+        @DisplayName("이후 PG 성공을 확인하면, 다시 차감하지 않아 가용 재고는 10 이다.")
+        @Test
+        void doesNotDecreaseAgain_whenPaymentSucceeds() {
+            // arrange
+            Order order = pendingAfterAdminSetsStockTo10();
+            pg.complete(onlyTransactionKeyOf(order), "SUCCESS");
+
+            // act
+            reconcile(order);
+
+            // assert
+            assertAll(
+                () -> assertThat(orderStatusOf(order)).isEqualTo("CONFIRMED"),
+                () -> assertThat(paymentStateOf(order)).containsExactly("SUCCESS", "CONSUMED", "-"),
+                () -> assertThat(stock()).isEqualTo(10)
+            );
+        }
+
+        @DisplayName("이후 PG 실패를 확인하면, 예약 2 만 한 번 돌려받아 가용 재고는 12 다.")
+        @Test
+        void releasesReservationOnce_whenPaymentFails() {
+            // arrange
+            Order order = pendingAfterAdminSetsStockTo10();
+            pg.complete(onlyTransactionKeyOf(order), "FAILED");
+
+            // act
+            reconcile(order);
+            reconcile(order);
+
+            // assert
+            assertAll(
+                () -> assertThat(orderStatusOf(order)).isEqualTo("PAYMENT_FAILED"),
+                () -> assertThat(paymentStateOf(order)).containsExactly("FAILED", "RELEASED", "-"),
+                () -> assertThat(stock()).isEqualTo(12)
             );
         }
     }
