@@ -5,6 +5,9 @@ import com.loopers.domain.order.OrderItem;
 import com.loopers.domain.order.OrderLine;
 import com.loopers.domain.order.OrderService;
 import com.loopers.domain.order.OrderStatus;
+import com.loopers.domain.order.OrderSummary;
+import com.loopers.domain.payment.entity.Payment;
+import com.loopers.domain.payment.service.PaymentService;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,7 @@ import java.util.Map;
 public class OrderFacade {
     private final OrderService orderService;
     private final ProductService productService;
+    private final PaymentService paymentService;
 
     public record OrderRequestLine(Long productId, int quantity) {}
 
@@ -42,8 +46,12 @@ public class OrderFacade {
         return OrderInfo.from(orderService.create(userId, lines));
     }
 
+    /** 결제 상태는 한 페이지의 결제를 한 번에 조회해 붙임 (5주차 설계 7장) */
+    @Transactional(readOnly = true)
     public Page<OrderSummaryInfo> getMyOrders(Long userId, OrderStatus status, Pageable pageable) {
-        return orderService.getOrderSummaries(userId, status, pageable).map(OrderSummaryInfo::from);
+        Page<OrderSummary> summaries = orderService.getOrderSummaries(userId, status, pageable);
+        Map<Long, Payment> payments = paymentService.findByOrderIds(summaries.map(OrderSummary::id).getContent());
+        return summaries.map(summary -> OrderSummaryInfo.of(summary, payments));
     }
 
     /** 판매 여부는 업무 규칙이 아니라 응답 구성 값이라 여기서 조합함. 품목의 상품들을 한 번에 물음 (설계 6.4, D-42) */
@@ -51,7 +59,8 @@ public class OrderFacade {
     public OrderDetailInfo getMyOrder(Long userId, Long orderId) {
         Order order = orderService.getMyOrder(userId, orderId);
         List<Long> productIds = order.getItems().stream().map(OrderItem::getProductId).toList();
-        return OrderDetailInfo.of(order, productService.getActiveProductIds(productIds));
+        Payment payment = paymentService.findByOrderId(order.getId()).orElse(null);
+        return OrderDetailInfo.of(order, productService.getActiveProductIds(productIds), payment);
     }
 
 }

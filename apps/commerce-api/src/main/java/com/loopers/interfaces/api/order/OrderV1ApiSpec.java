@@ -47,7 +47,7 @@ public interface OrderV1ApiSpec {
     )
     ApiResponse<PageResponse<OrderV1Dto.OrderSummaryResponse>> getMyOrders(
         @Parameter(hidden = true) LoginUser loginUser,
-        @Schema(description = "주문 상태: CONFIRMED(기본), DRAFT") String status,
+        @Schema(description = "주문 상태: CONFIRMED(기본), DRAFT, PAYMENT_PENDING, PAYMENT_FAILED") String status,
         @Schema(description = "페이지 (1부터)") int page,
         @Schema(description = "페이지 크기 (최대 100)") int size
     );

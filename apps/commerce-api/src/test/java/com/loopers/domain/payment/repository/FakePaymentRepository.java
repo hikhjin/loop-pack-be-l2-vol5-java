@@ -3,7 +3,9 @@ package com.loopers.domain.payment.repository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -14,6 +16,7 @@ public class FakePaymentRepository implements PaymentRepository {
 
     private final Map<Long, Payment> payments = new LinkedHashMap<>();
     private long sequence = 0L;
+    private int findAllByOrderIdsCalls = 0;
 
     @Override
     public Payment save(Payment payment) {
@@ -42,6 +45,16 @@ public class FakePaymentRepository implements PaymentRepository {
     @Override
     public Optional<Payment> findByProviderOrderId(String providerOrderId) {
         return payments.values().stream().filter(payment -> providerOrderId.equals(payment.getProviderOrderId())).findFirst();
+    }
+
+    @Override
+    public List<Payment> findAllByOrderIds(Collection<Long> orderIds) {
+        findAllByOrderIdsCalls++;
+        return payments.values().stream().filter(payment -> orderIds.contains(payment.getOrderId())).toList();
+    }
+
+    public int findAllByOrderIdsCalls() {
+        return findAllByOrderIdsCalls;
     }
 
     public int count() {

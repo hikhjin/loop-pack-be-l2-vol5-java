@@ -432,6 +432,26 @@ class OrderV1ApiE2ETest {
                 .andExpect(jsonPath("$.meta.errorCode").value("BAD_REQUEST"));
         }
 
+        @DisplayName("각 줄에 결제수단 · 결제 상태를 담고, 결제 진행 중인 주문은 PAYMENT_PENDING 으로 거를 수 있다. (5주차 설계 7장)")
+        @Test
+        void returnsPaymentFields() throws Exception {
+            Long confirmedId = createOrderId(itemsOf(first.getId(), 1));
+            confirm(user, confirmedId, "attempt-1").andExpect(status().isAccepted());
+            completeTransactionOf(confirmedId, "SUCCESS");
+            reconcile(user, confirmedId).andExpect(status().isOk());
+            Long pendingId = createOrderId(itemsOf(second.getId(), 1));
+            confirm(user, pendingId, "attempt-2").andExpect(status().isAccepted());
+
+            mvc.perform(get("/api/v1/orders").header(USER_ID_HEADER, String.valueOf(user.getId())))
+                .andExpect(jsonPath("$.data.items[0].id").value(confirmedId))
+                .andExpect(jsonPath("$.data.items[0].paymentMethod").value("PG"))
+                .andExpect(jsonPath("$.data.items[0].paymentStatus").value("SUCCESS"));
+            mvc.perform(get("/api/v1/orders").param("status", "PAYMENT_PENDING").header(USER_ID_HEADER, String.valueOf(user.getId())))
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(pendingId))
+                .andExpect(jsonPath("$.data.items[0].paymentStatus").value("PENDING"));
+        }
+
         @DisplayName("다른 사용자의 주문은 목록에 나오지 않는다.")
         @Test
         void excludesOthersOrders() throws Exception {
@@ -481,6 +501,35 @@ class OrderV1ApiE2ETest {
                 .andExpect(jsonPath("$.data.items[0].onSale").value(true))
                 .andExpect(jsonPath("$.data.items[1].onSale").value(false))
                 .andExpect(jsonPath("$.data.items[1].productName").value("두 번째 상품"));
+        }
+
+        @DisplayName("결제수단 · 결제 상태를 담고, 충돌이 기록돼도 고객에게는 충돌 사유를 보여 주지 않는다. (5주차 설계 7장)")
+        @Test
+        void returnsPaymentFields_withoutConflict() throws Exception {
+            // arrange: 같은 주문의 거래가 2 건이라 충돌이 기록됨
+            Long orderId = createOrderId(itemsOf(first.getId(), 1));
+            confirm(user, orderId, "attempt-1").andExpect(status().isAccepted());
+            pg.addTransaction(Payment.providerOrderIdOf(orderId), 1_000L, "SUCCESS");
+            reconcile(user, orderId).andExpect(status().isAccepted());
+
+            // act & assert
+            mvc.perform(get("/api/v1/orders/" + orderId).header(USER_ID_HEADER, String.valueOf(user.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PAYMENT_PENDING"))
+                .andExpect(jsonPath("$.data.paymentMethod").value("PG"))
+                .andExpect(jsonPath("$.data.paymentStatus").value("PENDING"))
+                .andExpect(jsonPath("$.data.paymentConflict").doesNotExist());
+        }
+
+        @DisplayName("결제를 시작하지 않은 주문이면, 결제 필드를 비워 둔다.")
+        @Test
+        void leavesPaymentFieldsEmpty_whenNoAttempt() throws Exception {
+            Long orderId = createOrderId(itemsOf(first.getId(), 1));
+
+            mvc.perform(get("/api/v1/orders/" + orderId).header(USER_ID_HEADER, String.valueOf(user.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.paymentMethod").doesNotExist())
+                .andExpect(jsonPath("$.data.paymentStatus").doesNotExist());
         }
     }
 }

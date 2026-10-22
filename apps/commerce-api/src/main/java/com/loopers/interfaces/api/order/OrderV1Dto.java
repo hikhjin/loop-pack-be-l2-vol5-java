@@ -35,7 +35,7 @@ public class OrderV1Dto {
         }
     }
 
-    /** paymentCheck 는 이번 요청의 PG 조회 실패 시에만 UNAVAILABLE */
+    /** paymentCheck 는 이번 요청의 PG 조회 실패 시에만 UNAVAILABLE. 충돌 사유는 고객에게 내보내지 않음 */
     public record OrderResponse(
         Long id,
         String status,
@@ -80,7 +80,9 @@ public class OrderV1Dto {
         Long paymentAmount,
         ZonedDateTime paidAt,
         ZonedDateTime orderedAt,
-        List<ItemResponse> items
+        List<ItemResponse> items,
+        String paymentMethod,
+        String paymentStatus
     ) {
         public record ItemResponse(Long productId, String productName, long unitPrice, int quantity, long amount, boolean onSale) {}
 
@@ -95,7 +97,9 @@ public class OrderV1Dto {
                 info.items().stream()
                     .map(item -> new ItemResponse(
                         item.productId(), item.productName(), item.unitPrice(), item.quantity(), item.amount(), item.onSale()))
-                    .toList()
+                    .toList(),
+                info.paymentMethod(),
+                info.paymentStatus()
             );
         }
     }
@@ -107,7 +111,9 @@ public class OrderV1Dto {
         Long paymentAmount,
         int itemCount,
         String representativeProductName,
-        ZonedDateTime orderedAt
+        ZonedDateTime orderedAt,
+        String paymentMethod,
+        String paymentStatus
     ) {
         public static OrderSummaryResponse from(OrderSummaryInfo info) {
             return new OrderSummaryResponse(
@@ -117,7 +123,9 @@ public class OrderV1Dto {
                 info.paymentAmount(),
                 info.itemCount(),
                 info.representativeProductName(),
-                info.orderedAt()
+                info.orderedAt(),
+                info.paymentMethod(),
+                info.paymentStatus()
             );
         }
     }

@@ -52,7 +52,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.loopers.application.order.OrderFacade;
+import com.loopers.application.order.OrderDetailInfo;
 import com.loopers.application.order.OrderInfo;
+import com.loopers.application.order.OrderSummaryInfo;
+import org.springframework.data.domain.PageRequest;
 
 /** fake 와 PG 대역으로 DB · HTTP 없이 확인함. fake 에는 rollback 이 없어 DB 기준 rollback 은 OrderConfirmTransactionTest 가 확인함 */
 class OrderPaymentFacadeTest {
@@ -113,8 +116,9 @@ class OrderPaymentFacadeTest {
         clock = new MutableClock(CREATED_AT);
         OrderService orderService = new OrderService(orderRepository, clock);
         ProductService productService = new ProductService(productRepository, new FakeProductLikeCountRepository(), clock);
-        OrderPaymentSteps steps = new OrderPaymentSteps(orderService, productService, new PaymentService(paymentRepository, clock));
-        orderFacade = new OrderFacade(orderService, productService);
+        PaymentService paymentService = new PaymentService(paymentRepository, clock);
+        OrderPaymentSteps steps = new OrderPaymentSteps(orderService, productService, paymentService);
+        orderFacade = new OrderFacade(orderService, productService, paymentService);
         orderPaymentFacade = new OrderPaymentFacade(steps, gateway, productListCache, productDetailCache);
         brand = brandRepository.save(new Brand("브랜드", null));
     }
@@ -796,6 +800,54 @@ class OrderPaymentFacadeTest {
             CoreException result = assertThrows(CoreException.class, () -> orderPaymentFacade.handleCallback(null));
 
             assertThat(result.getErrorCode()).isEqualTo(PaymentErrorCode.INVALID_PAYMENT_REQUEST);
+        }
+    }
+
+    @DisplayName("주문을 조회할 때, (5주차 설계 7장)")
+    @Nested
+    class Query {
+        @DisplayName("목록은 한 페이지의 결제를 한 번에 조회해 결제수단 · 결제 상태를 붙이고, 결제 시도가 없는 주문은 비워 둔다.")
+        @Test
+        void attachesPaymentToList_withOneBulkLookup() {
+            // arrange
+            Product product = saveProduct(1_000L, 10);
+            Order pending = createOrder(line(product, 1));
+            confirm(USER_ID, pending, "attempt-1");
+            Order draft = createOrder(line(product, 1));
+
+            // act
+            List<OrderSummaryInfo> result = orderFacade.getMyOrders(USER_ID, null, PageRequest.of(0, 20)).getContent();
+
+            // assert
+            OrderSummaryInfo pendingRow = result.stream().filter(row -> row.id().equals(pending.getId())).findFirst().orElseThrow();
+            OrderSummaryInfo draftRow = result.stream().filter(row -> row.id().equals(draft.getId())).findFirst().orElseThrow();
+            assertAll(
+                () -> assertThat(pendingRow.paymentMethod()).isEqualTo("PG"),
+                () -> assertThat(pendingRow.paymentStatus()).isEqualTo("PENDING"),
+                () -> assertThat(draftRow.paymentMethod()).isNull(),
+                () -> assertThat(draftRow.paymentStatus()).isNull(),
+                () -> assertThat(paymentRepository.findAllByOrderIdsCalls()).isEqualTo(1)
+            );
+        }
+
+        @DisplayName("상세는 결제수단 · 결제 상태를 담는다.")
+        @Test
+        void attachesPaymentToDetail() {
+            // arrange
+            Product product = saveProduct(1_000L, 10);
+            Order order = createOrder(line(product, 1));
+            gateway.willCreate(new PaymentCreateResult.RejectedWithoutEffect());
+            confirm(USER_ID, order, "attempt-1");
+
+            // act
+            OrderDetailInfo result = orderFacade.getMyOrder(USER_ID, order.getId());
+
+            // assert
+            assertAll(
+                () -> assertThat(result.status()).isEqualTo("PAYMENT_FAILED"),
+                () -> assertThat(result.paymentMethod()).isEqualTo("PG"),
+                () -> assertThat(result.paymentStatus()).isEqualTo("REJECTED")
+            );
         }
     }
 

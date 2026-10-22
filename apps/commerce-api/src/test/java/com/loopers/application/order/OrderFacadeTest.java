@@ -7,6 +7,8 @@ import com.loopers.domain.order.FakeOrderRepository;
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderService;
 import com.loopers.domain.order.OrderStatus;
+import com.loopers.domain.payment.repository.FakePaymentRepository;
+import com.loopers.domain.payment.service.PaymentService;
 import com.loopers.domain.point.FakePointRepository;
 import com.loopers.domain.point.PointService;
 import com.loopers.domain.product.FakeProductLikeCountRepository;
@@ -50,7 +52,7 @@ class OrderFacadeTest {
         pointService = new PointService(new FakePointRepository());
         Clock clock = Clock.fixed(CREATED_AT.toInstant(), CREATED_AT.getZone());
         ProductService productService = new ProductService(productRepository, new FakeProductLikeCountRepository(), clock);
-        orderFacade = new OrderFacade(new OrderService(orderRepository, clock), productService);
+        orderFacade = new OrderFacade(new OrderService(orderRepository, clock), productService, new PaymentService(new FakePaymentRepository(), clock));
         brand = brandRepository.save(new Brand("브랜드", null));
     }
 

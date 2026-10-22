@@ -8,7 +8,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.ZonedDateTime;
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.payment.enums.PaymentErrorCode;
 import com.loopers.domain.payment.enums.ReservationChange;
@@ -32,6 +36,13 @@ public class PaymentService {
     public Payment getByOrderId(Long orderId) {
         return paymentRepository.findByOrderId(orderId)
             .orElseThrow(() -> new CoreException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+    }
+
+    /** 목록 응답용. 결제 시도가 없는 주문(DRAFT · 이전 POINT 주문)은 맵에 없음 */
+    @Transactional(readOnly = true)
+    public Map<Long, Payment> findByOrderIds(Collection<Long> orderIds) {
+        return paymentRepository.findAllByOrderIds(orderIds).stream()
+            .collect(Collectors.toMap(Payment::getOrderId, Function.identity()));
     }
 
     @Transactional(readOnly = true)
