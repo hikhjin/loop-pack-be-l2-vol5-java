@@ -1,6 +1,7 @@
 package com.loopers.application.order;
 
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
+import com.loopers.application.product.AdminProductFacade;
 import com.loopers.domain.brand.Brand;
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderLine;
@@ -23,6 +24,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static com.loopers.support.ConcurrentRunner.SUCCESS;
 import static com.loopers.support.ConcurrentRunner.TECHNICAL_PREFIX;
@@ -40,6 +45,9 @@ class OrderConfirmConcurrencyTest {
 
     @Autowired
     private OrderPaymentFacade orderPaymentFacade;
+
+    @Autowired
+    private AdminProductFacade adminProductFacade;
 
     @Autowired
     private EntityManager entityManager;
@@ -185,6 +193,51 @@ class OrderConfirmConcurrencyTest {
             () -> assertThat(stockOf(product.getId())).isEqualTo(10),
             () -> assertThat(pg.createCount()).isEqualTo(1)
         );
+    }
+
+    @DisplayName("PG 생성 응답을 기다리는 동안에도, 같은 상품의 관리자 재고 설정과 다른 주문의 재고 확보가 기다리지 않고 끝난다.")
+    @Test
+    void doesNotHoldProductLock_whileWaitingForPg() throws Exception {
+        // arrange
+        Product product = persistProduct(5, 1_000L);
+        Order first = persistDraft(1L, product, 2);
+        Order second = persistDraft(2L, product, 1);
+        pg.holdCreateResponse();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<OrderInfo> firstConfirm = executor.submit(() -> orderPaymentFacade.confirm(1L, first.getId(), command("attempt-1")));
+            awaitCreateReceived(1);
+
+            // act: 첫 주문은 TX A 를 commit 하고 PG 응답을 기다리는 중
+            adminProductFacade.changeStock(product.getId(), 10);
+            OrderInfo secondStarted = orderPaymentFacade.confirm(2L, second.getId(), command("attempt-2"));
+            boolean firstWasWaiting = !firstConfirm.isDone();
+            pg.releaseCreateResponse();
+            OrderInfo firstStarted = firstConfirm.get(5, TimeUnit.SECONDS);
+
+            // assert
+            assertAll(
+                () -> assertThat(firstWasWaiting).isTrue(),
+                () -> assertThat(secondStarted.status()).isEqualTo("PAYMENT_PENDING"),
+                () -> assertThat(firstStarted.paymentStatus()).isEqualTo("PENDING"),
+                // 관리자가 가용 수량을 10 으로 정한 뒤 두 번째 주문이 1 을 확보함
+                () -> assertThat(stockOf(product.getId())).isEqualTo(9),
+                () -> assertThat(pg.createCount()).isEqualTo(2)
+            );
+        } finally {
+            pg.releaseCreateResponse();
+            executor.shutdownNow();
+        }
+    }
+
+    private void awaitCreateReceived(int count) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (pg.createCount() < count) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("PG 생성 요청이 도착하지 않음");
+            }
+            Thread.sleep(10);
+        }
     }
 
     private Product persistProduct(int stock, long price) {

@@ -20,8 +20,10 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** 5주차 설계 3.1 계약을 따르는 테스트 PG. 응답 방식을 테스트마다 고정하며 무작위 지연 · 성공 확률은 넣지 않음 */
@@ -37,6 +39,8 @@ public final class TestPgServer implements AutoCloseable {
         ACCEPT_THEN_DROP,
         /** 거래를 만든 뒤 정한 시간만큼 늦게 202 */
         ACCEPT_THEN_DELAY,
+        /** 이번 한 건만 거래를 만든 뒤 테스트가 풀어 줄 때까지 202 를 보내지 않음. 다음 요청부터는 ACCEPT */
+        ACCEPT_THEN_HOLD,
         /** 거래를 만들지 않고 422 확정 거절 */
         REJECT_BEFORE_CREATE,
         /** 거래를 만들지 않고 정한 상태 코드 · 본문으로 응답 */
@@ -105,6 +109,7 @@ public final class TestPgServer implements AutoCloseable {
     private volatile CreateBehavior createBehavior = CreateBehavior.ACCEPT;
     private volatile LookupBehavior lookupBehavior = LookupBehavior.NORMAL;
     private volatile Duration delay = Duration.ZERO;
+    private volatile CountDownLatch createGate = new CountDownLatch(0);
     private volatile int fixedCreateStatus;
     private volatile String fixedCreateBody;
     private volatile int fixedLookupStatus;
@@ -154,6 +159,8 @@ public final class TestPgServer implements AutoCloseable {
         lookupBehavior = LookupBehavior.NORMAL;
         lookupSteps.clear();
         delay = Duration.ZERO;
+        // 붙잡힌 응답이 다음 테스트로 남지 않게 풂
+        createGate.countDown();
     }
 
     public void willAccept() {
@@ -167,6 +174,16 @@ public final class TestPgServer implements AutoCloseable {
     public void willDelayResponseAfterCreate(Duration delay) {
         this.delay = delay;
         this.createBehavior = CreateBehavior.ACCEPT_THEN_DELAY;
+    }
+
+    /** 시간 대신 순서로 "PG 호출이 끝나지 않은 동안"을 만듦 */
+    public void holdCreateResponse() {
+        this.createGate = new CountDownLatch(1);
+        this.createBehavior = CreateBehavior.ACCEPT_THEN_HOLD;
+    }
+
+    public void releaseCreateResponse() {
+        createGate.countDown();
     }
 
     public void willRejectBeforeCreate() {
@@ -288,6 +305,13 @@ public final class TestPgServer implements AutoCloseable {
             case ACCEPT_THEN_DELAY -> {
                 Transaction transaction = createPending(orderId, amount);
                 Thread.sleep(delay.toMillis());
+                respond(exchange, 202, transactionJson(transaction).toString());
+            }
+            case ACCEPT_THEN_HOLD -> {
+                createBehavior = CreateBehavior.ACCEPT;
+                Transaction transaction = createPending(orderId, amount);
+                // 풀지 않아도 무한히 붙잡지 않음
+                createGate.await(10, TimeUnit.SECONDS);
                 respond(exchange, 202, transactionJson(transaction).toString());
             }
             case REJECT_BEFORE_CREATE -> {
