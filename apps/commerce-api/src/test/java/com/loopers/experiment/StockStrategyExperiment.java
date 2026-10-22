@@ -70,7 +70,7 @@ class StockStrategyExperiment {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
-    /** 실제 OrderConfirmRetrier 와 같은 정책 (총 3회, 50ms 부터 지수 백오프 최대 200ms, 지터) */
+    /** 3주차 주문 확정 재시도와 같은 정책 (총 3회, 50ms 부터 지수 백오프 최대 200ms, 지터). 그 Retrier 는 5주차 PG 결제 교체로 제거됨 */
     private final RetryTemplate retryTemplate = RetryTemplate.builder()
         .maxAttempts(3)
         .exponentialBackoff(50, 2, 200, true)
