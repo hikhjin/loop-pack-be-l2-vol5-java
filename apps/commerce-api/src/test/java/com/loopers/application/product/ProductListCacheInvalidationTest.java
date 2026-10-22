@@ -9,6 +9,7 @@ import com.loopers.application.point.PointFacade;
 import com.loopers.domain.product.ProductSort;
 import com.loopers.support.error.CoreException;
 import com.loopers.utils.DatabaseCleanUp;
+import com.loopers.support.redis.ProductCacheConnection;
 import com.loopers.utils.RedisCleanUp;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
@@ -65,6 +66,9 @@ class ProductListCacheInvalidationTest {
     private DatabaseCleanUp databaseCleanUp;
 
     @Autowired
+    private ProductCacheConnection productCacheConnection;
+
+    @Autowired
     private RedisCleanUp redisCleanUp;
 
     private Long brandId;
@@ -74,6 +78,7 @@ class ProductListCacheInvalidationTest {
 
     @BeforeEach
     void setUp() {
+        productCacheConnection.connect();
         brandId = brandFacade.createBrand("브랜드", "설명").id();
         otherBrandId = brandFacade.createBrand("다른 브랜드", null).id();
         productIds = List.of(createProduct(brandId, 1_000L), createProduct(brandId, 2_000L), createProduct(brandId, 3_000L));
