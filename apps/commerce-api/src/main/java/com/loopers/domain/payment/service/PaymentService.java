@@ -2,6 +2,7 @@ package com.loopers.domain.payment.service;
 
 import com.loopers.support.error.CoreException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,6 +11,7 @@ import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -20,6 +22,7 @@ import com.loopers.domain.payment.repository.PaymentRepository;
 import com.loopers.domain.payment.vo.PaymentCreateResult;
 import com.loopers.domain.payment.vo.PaymentLookupResult;
 
+@Slf4j
 @RequiredArgsConstructor
 @Component
 public class PaymentService {
@@ -80,11 +83,36 @@ public class PaymentService {
 
     @Transactional
     public ReservationChange apply(Payment payment, PaymentCreateResult result) {
-        return payment.apply(result, ZonedDateTime.now(clock));
+        ZonedDateTime conflictedBefore = payment.getConflictedAt();
+        ReservationChange change = payment.apply(result, ZonedDateTime.now(clock));
+        logIfConflicted(payment, conflictedBefore, result.toString());
+        return change;
     }
 
     @Transactional
     public ReservationChange apply(Payment payment, PaymentLookupResult result) {
-        return payment.apply(result, ZonedDateTime.now(clock));
+        ZonedDateTime conflictedBefore = payment.getConflictedAt();
+        ReservationChange change = payment.apply(result, ZonedDateTime.now(clock));
+        logIfConflicted(payment, conflictedBefore, describe(result));
+        return change;
+    }
+
+    /** 충돌은 자동으로 풀리지 않아 사람이 확인하므로 판단 근거를 남김. commit 전이라 "관찰함"으로 씀 (D-65) */
+    private static void logIfConflicted(Payment payment, ZonedDateTime conflictedBefore, String observed) {
+        if (Objects.equals(conflictedBefore, payment.getConflictedAt())) {
+            return;
+        }
+        log.warn("결제 결과 충돌이 관찰되었습니다. paymentId={}, orderId={}, providerOrderId={}, reason={}, status={}, observed={}",
+            payment.getId(), payment.getOrderId(), payment.getProviderOrderId(), payment.getConflictReason(),
+            payment.getStatus(), observed);
+    }
+
+    private static String describe(PaymentLookupResult result) {
+        if (result instanceof PaymentLookupResult.Found found) {
+            return found.transactions().stream()
+                .map(tx -> tx.transactionKey() + " " + tx.providerOrderId() + " " + tx.status() + " " + tx.amount())
+                .collect(Collectors.joining(", ", "[", "]"));
+        }
+        return result.toString();
     }
 }
