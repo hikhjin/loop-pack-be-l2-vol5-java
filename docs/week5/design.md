@@ -354,6 +354,9 @@ POST /api/v1/payments/callback                    (로컬 PG, 내부 인증 없�
 
 - **콜백 본문은 확인 요청의 계기로만 쓴다(D-62).** 본문의 `status` 로 주문을 확정하지 않는다. 본문의 `providerOrderId` 로 시도를 찾은 뒤, adapter의 주문 조회 결과만 적용한다. 조작한 본문(`status=SUCCESS`)으로는 아무것도 바뀌지 않는다.
   - 서명 검증은 실제 서비스에서 필요하지만 테스트 PG 계약에 없다(8장).
+- **콜백 응답은 수신 확인이다(D-69).** 시도를 찾았으면 조회 결과와 관계없이 200이다. 조회 실패 · 회로 OPEN(L6)이어도 상태를 바꾸지 않고 200을 준다. 시도가 없을 때만 `PAYMENT_NOT_FOUND` 404다.
+  - 테스트 PG 계약에 재전송 규칙이 없어, 실패 응답으로 다시 보내 달라고 해도 얻는 것이 없다. 확인하지 못한 결과는 reconcile이 맡는다.
+  - 본문에 주문 정보(주문 · 결제 상태)를 담지 않는다. 인증 없는 경로라, 담으면 `providerOrderId` 만 알면 결제 상태를 알아내는 조회 수단이 된다.
 - **콜백이 없어도 reconcile로 같은 결과에 도달한다.** 상시 스케줄러는 두지 않고 수동 reconcile을 기본 복구 경로로 한다.
 - **거래 키를 알아도 주문 단위 조회(`?orderId=`)를 쓴다(D-66).** 거래 키를 모르는 REQUESTED · UNKNOWN 시도도 같은 경로로 확인하고, 매번 복수 거래를 발견한다. 거래 키 단건 조회는 adapter 계약 테스트로만 확인한다.
 
@@ -441,7 +444,7 @@ commit ── 이후 품절이 풀린 상품의 캐시 무효화
 | `POST /api/v1/orders/{orderId}/confirm` 본문 `{paymentAttemptKey, cardType, cardNo}` | 202 (REQUESTED · UNKNOWN · PENDING), 200 (SUCCESS · FAILED · REJECTED · NOT_REQUIRED) | `ORDER_NOT_FOUND` 404, `ORDER_ALREADY_CONFIRMED` 409, `ORDER_EXPIRED` 409, `PRODUCT_NOT_FOUND` 404, `OUT_OF_STOCK` 409, `PAYMENT_ATTEMPT_CONFLICT` 409, `INVALID_PAYMENT_REQUEST` 400 |
 | `GET /api/v1/orders/{orderId}` | 200. 결제수단 · 결제 상태 · 결과. 새 결제 요청을 만들지 않음 | `ORDER_NOT_FOUND` 404 |
 | `POST /api/v1/orders/{orderId}/payment/reconcile` | 202 (미종결), 200 (종결) | `ORDER_NOT_FOUND` 404, `PAYMENT_NOT_FOUND` 404 |
-| `POST /api/v1/payments/callback` 본문 `{orderId(providerOrderId), transactionKey, status}` | 200 (처리함. 미종결 유지 포함) | `PAYMENT_NOT_FOUND` 404 |
+| `POST /api/v1/payments/callback` 본문 `{orderId(providerOrderId), transactionKey, status}` | 200 (수신 확인. 미종결 유지 · 조회 실패 포함, 본문에 주문 정보 없음, D-69) | `PAYMENT_NOT_FOUND` 404, `INVALID_PAYMENT_REQUEST` 400 (`orderId` 없음) |
 | 고객 · 관리자 주문 목록 · 상세 | 응답에 `paymentMethod`, `paymentStatus` 추가. 목록 상태 필터에 새 주문 상태 허용 | 기존 그대로 |
 
 - **응답 본문:** 주문 응답에 `paymentMethod`, `paymentStatus`, `statusUrl`(`/api/v1/orders/{id}`)을 더한다. 이번 요청의 조회가 L6이었다면 `paymentCheck: UNAVAILABLE` 을 담는다.
@@ -455,6 +458,7 @@ commit ── 이후 품절이 풀린 상품의 캐시 무효화
 - **REQUESTED + 조회 0건:** 실제 발송이 0회였는지, PG 반영이 늦은 것인지 구분하지 못한다. 자동 재발송하지 않으므로 이 시도는 자동 완료되지 않을 수 있다. 중복 방지와 모든 시도의 자동 완료는 같은 보장이 아니다.
 - **콜백 서명 없음:** 테스트 PG 계약에 서명이 없어 위조 콜백을 막지 못한다. 대신 본문을 믿지 않고 조회로 검증해, 위조 콜백이 할 수 있는 일은 "조회를 한 번 더 일으키는 것"으로 제한된다.
   - **위조 콜백이 쏟아지면 조회가 늘어 회로가 열릴 수 있다.** 회로가 열려도 결제 결과는 바뀌지 않고(5장), 그동안 reconcile도 "확인 불가"를 받을 뿐이다. 서버는 127.0.0.1에만 열려 있어(로컬 실습 범위) 콜백 경로의 호출 수 제한은 두지 않는다. 외부에 열 때는 서명 검증과 함께 콜백 경로의 호출 수 제한이 필요하다.
+- **조회에 실패한 콜백은 다시 오지 않는다(D-69).** 200으로 수신을 확인하므로, 그 결과는 사용자의 reconcile 전까지 미종결로 남는다. 재전송 계약이 있는 PG라면 조회 실패에 실패 응답을 주어 재전송을 복구 경로로 쓸 수 있다.
 - **범위 밖:** 실패 후 새 시도, 환불 · 부분 취소 · 반품, 정산, 사용자 취소, 상시 대사 스케줄러.
 
 ## 9. 기존 코드 · 테스트 변경
@@ -496,6 +500,7 @@ commit ── 이후 품절이 풀린 상품의 캐시 무효화
 | 복수 거래 뒤 한 건만 SUCCESS | 목록 조회가 계속 L5로 보므로 확정되지 않음 | 〃 |
 | timeout · 회로 OPEN · 회복 | 조회 수 제한, 기존 상태 유지, HALF_OPEN 뒤 조회 재개 | 〃 (회로는 짧은 대기 설정) |
 | 조작한 callback 본문 | 실제 controller를 거쳐도 조회 결과 없이는 확정되지 않음 | E2E |
+| callback 처리 중 조회 실패 · 회로 OPEN | 200, 본문에 주문 정보 없음, 결제 · 주문 · 재고 그대로, create 추가 0 (OPEN이면 조회 0) | E2E |
 | 기존 기능 보호 | POINT 과거 기록 · 소유권, 재고 부족 시 PG 0회, 삭제 상품 · 예약 결과 구분 | E2E · 통합 |
 
 - **테스트 PG fixture:** JDK `HttpServer` 로 만든다(새 의존성 없음). 거래 저장소, create 수신 횟수를 관찰할 수 있고, 시나리오(정상 PENDING, 생성 후 응답 끊기, 422 확정 거절, 조회 지연 · 실패, 복수 거래)를 테스트마다 고정한다. 무작위 지연 · 성공 확률은 넣지 않는다.
@@ -515,3 +520,4 @@ commit ── 이후 품절이 풀린 상품의 캐시 무효화
 | D-66 | 결과 조회는 거래 키를 알아도 항상 주문 단위 목록(`?orderId=`)으로 한다 |
 | D-67 | 효과 0건 확정 거절은 `FAILED` 와 나눈 종결 상태 `REJECTED` 로 둔다. 주문 · 예약 효과는 FAILED와 같다 |
 | D-68 | 0원 주문은 PG 를 부르지 않고 TX A 에서 바로 확정한다. Payment 는 `NOT_REQUIRED` · `CONSUMED` 로 남겨 시도 키 멱등성을 유지하고, 결제수단은 `NONE` 이다 |
+| D-69 | 콜백 응답은 수신 확인이다. 시도를 찾으면 조회 실패 · 회로 OPEN이어도 200이고, 본문에 주문 정보를 담지 않는다 |
