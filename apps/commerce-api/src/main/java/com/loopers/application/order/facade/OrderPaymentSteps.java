@@ -104,6 +104,14 @@ public class OrderPaymentSteps {
         return new Snapshot(OrderInfo.from(order, payment), payment.getProviderOrderId(), payment.getStatus().isTerminal());
     }
 
+    /** 콜백용. PG 가 보낸 주문 식별자로 찾으므로 본인 확인 없음 */
+    @Transactional(readOnly = true)
+    public Snapshot snapshotByProviderOrderId(String providerOrderId) {
+        Payment payment = paymentService.getByProviderOrderId(providerOrderId);
+        Order order = orderService.getOrder(payment.getOrderId());
+        return new Snapshot(OrderInfo.from(order, payment), payment.getProviderOrderId(), payment.getStatus().isTerminal());
+    }
+
     /** TX B: 조회 결과 적용. 판정은 Payment 가 함 */
     @Transactional
     public Applied applyLookupResult(Long orderId, PaymentLookupResult result) {

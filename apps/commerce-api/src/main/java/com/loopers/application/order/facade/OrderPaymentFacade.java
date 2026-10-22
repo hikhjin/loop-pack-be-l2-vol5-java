@@ -48,9 +48,20 @@ public class OrderPaymentFacade {
         return applied.order();
     }
 
-    /** 미종결 시도만 조회함. 조회 실패면 저장된 상태에 확인 불가를 붙여 돌려줌 */
     public OrderInfo reconcile(Long userId, Long orderId) {
-        OrderPaymentSteps.Snapshot snapshot = steps.snapshot(userId, orderId);
+        return lookupAndApply(steps.snapshot(userId, orderId));
+    }
+
+    /** 본문의 상태는 쓰지 않고 조회 결과만 적용함 (D-62) */
+    public OrderInfo handleCallback(String providerOrderId) {
+        if (isBlank(providerOrderId)) {
+            throw new CoreException(PaymentErrorCode.INVALID_PAYMENT_REQUEST);
+        }
+        return lookupAndApply(steps.snapshotByProviderOrderId(providerOrderId));
+    }
+
+    /** 미종결 시도만 조회함. 조회 실패면 저장된 상태에 확인 불가를 붙여 돌려줌 */
+    private OrderInfo lookupAndApply(OrderPaymentSteps.Snapshot snapshot) {
         if (snapshot.settled()) {
             return snapshot.order();
         }
@@ -58,7 +69,7 @@ public class OrderPaymentFacade {
         if (result instanceof PaymentLookupResult.Unavailable) {
             return snapshot.order().withPaymentUnavailable();
         }
-        OrderPaymentSteps.Applied applied = steps.applyLookupResult(orderId, result);
+        OrderPaymentSteps.Applied applied = steps.applyLookupResult(snapshot.order().id(), result);
         invalidate(applied.restockedBrandIds(), applied.restockedProductIds());
         return applied.order();
     }

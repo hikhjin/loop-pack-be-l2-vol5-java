@@ -4,6 +4,7 @@ import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.domain.brand.Brand;
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderLine;
+import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.product.Product;
 import com.loopers.support.ConcurrentRunner;
 import com.loopers.support.pg.TestPgServer;
@@ -155,6 +156,33 @@ class OrderConfirmConcurrencyTest {
             () -> assertThat(outcomes).containsExactlyInAnyOrder(SUCCESS, PAYMENT_ATTEMPT_CONFLICT),
             () -> assertThat(stockOf(product.getId())).isEqualTo(9),
             () -> assertThat(countOf("select count(*) from payment")).isEqualTo(1),
+            () -> assertThat(pg.createCount()).isEqualTo(1)
+        );
+    }
+
+    @DisplayName("콜백과 reconcile 이 동시에 FAILED 를 확인해도, 하나만 반영되어 재고는 한 번만 반환되고 기술 오류는 0 이다.")
+    @Test
+    void releasesOnce_whenCallbackAndReconcileRunConcurrently() throws Exception {
+        // arrange
+        long userId = 1L;
+        Product product = persistProduct(10, 1_000L);
+        Order order = persistDraft(userId, product, 2);
+        orderPaymentFacade.confirm(userId, order.getId(), command("attempt-1"));
+        String providerOrderId = Payment.providerOrderIdOf(order.getId());
+        pg.complete(pg.transactionsOf(providerOrderId).get(0).transactionKey(), "FAILED");
+        List<Callable<String>> tasks = List.of(
+            outcomeOf(() -> orderPaymentFacade.handleCallback(providerOrderId)),
+            outcomeOf(() -> orderPaymentFacade.reconcile(userId, order.getId()))
+        );
+
+        // act
+        List<String> outcomes = ConcurrentRunner.run(tasks);
+
+        // assert
+        assertAll(
+            () -> assertThat(outcomes).containsExactly(SUCCESS, SUCCESS),
+            () -> assertThat(statusOf(order.getId())).isEqualTo("PAYMENT_FAILED"),
+            () -> assertThat(stockOf(product.getId())).isEqualTo(10),
             () -> assertThat(pg.createCount()).isEqualTo(1)
         );
     }

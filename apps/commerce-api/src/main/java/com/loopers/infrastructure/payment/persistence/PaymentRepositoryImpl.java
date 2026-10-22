@@ -26,4 +26,9 @@ public class PaymentRepositoryImpl implements PaymentRepository {
     public Optional<Payment> findByAttemptKey(String attemptKey) {
         return paymentJpaRepository.findByAttemptKey(attemptKey);
     }
+
+    @Override
+    public Optional<Payment> findByProviderOrderId(String providerOrderId) {
+        return paymentJpaRepository.findByProviderOrderId(providerOrderId);
+    }
 }

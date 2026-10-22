@@ -679,6 +679,126 @@ class OrderPaymentFacadeTest {
         }
     }
 
+    @DisplayName("PG 콜백을 받을 때, ")
+    @Nested
+    class Callback {
+        private Order pendingOrder(Product product, int quantity) {
+            Order order = createOrder(line(product, quantity));
+            gateway.willCreate(new PaymentCreateResult.Unknown());
+            confirm(USER_ID, order, "attempt-1");
+            return order;
+        }
+
+        @DisplayName("조회로 SUCCESS 를 확인하면, 본인 확인 없이 CONFIRMED 로 반영하고 재고를 더 차감하지 않는다.")
+        @Test
+        void confirms_whenLookupSucceeded() {
+            // arrange
+            Product product = saveProduct(1_000L, 5);
+            Order order = pendingOrder(product, 2);
+            gateway.willLookup(foundOne(order, ProviderTransactionStatus.SUCCESS));
+
+            // act
+            OrderInfo result = orderPaymentFacade.handleCallback(Payment.providerOrderIdOf(order.getId()));
+
+            // assert
+            assertAll(
+                () -> assertThat(result.status()).isEqualTo("CONFIRMED"),
+                () -> assertThat(order.getPaymentAmount()).isEqualTo(2_000L),
+                () -> assertThat(product.getStock()).isEqualTo(3),
+                () -> assertThat(gateway.lookups()).containsExactly(Payment.providerOrderIdOf(order.getId()))
+            );
+        }
+
+        @DisplayName("조회 결과가 아직 처리 중이면, 본문이 SUCCESS 라고 해도 확정하지 않는다.")
+        @Test
+        void doesNotConfirm_whenLookupIsStillPending() {
+            // arrange
+            Product product = saveProduct(1_000L, 5);
+            Order order = pendingOrder(product, 2);
+            gateway.willLookup(foundOne(order, ProviderTransactionStatus.PENDING));
+
+            // act
+            OrderInfo result = orderPaymentFacade.handleCallback(Payment.providerOrderIdOf(order.getId()));
+
+            // assert
+            assertAll(
+                () -> assertThat(result.status()).isEqualTo("PAYMENT_PENDING"),
+                () -> assertThat(result.paymentStatus()).isEqualTo("PENDING"),
+                () -> assertThat(order.getPaymentAmount()).isNull(),
+                () -> assertThat(product.getStock()).isEqualTo(3)
+            );
+        }
+
+        @DisplayName("이미 종결된 결제면, PG 를 조회하지 않고 저장된 상태를 돌려준다. 같은 콜백이 다시 와도 반환이 늘지 않는다.")
+        @Test
+        void skipsLookup_whenAlreadySettled() {
+            // arrange
+            Product product = saveProduct(1_000L, 5);
+            Order order = pendingOrder(product, 2);
+            gateway.willLookup(foundOne(order, ProviderTransactionStatus.FAILED));
+            orderPaymentFacade.handleCallback(Payment.providerOrderIdOf(order.getId()));
+
+            // act
+            OrderInfo result = orderPaymentFacade.handleCallback(Payment.providerOrderIdOf(order.getId()));
+
+            // assert
+            assertAll(
+                () -> assertThat(result.status()).isEqualTo("PAYMENT_FAILED"),
+                () -> assertThat(product.getStock()).isEqualTo(5),
+                () -> assertThat(gateway.lookups()).hasSize(1)
+            );
+        }
+
+        @DisplayName("PG 를 조회하지 못하면, 저장된 상태를 그대로 둔다.")
+        @Test
+        void keepsStoredState_whenLookupIsUnavailable() {
+            // arrange
+            Product product = saveProduct(1_000L, 5);
+            Order order = pendingOrder(product, 2);
+            gateway.willLookup(new PaymentLookupResult.Unavailable());
+
+            // act
+            OrderInfo result = orderPaymentFacade.handleCallback(Payment.providerOrderIdOf(order.getId()));
+
+            // assert
+            assertAll(
+                () -> assertThat(result.status()).isEqualTo("PAYMENT_PENDING"),
+                () -> assertThat(result.paymentStatus()).isEqualTo("UNKNOWN"),
+                () -> assertThat(result.paymentUnavailable()).isTrue(),
+                () -> assertThat(product.getStock()).isEqualTo(3)
+            );
+        }
+
+        @DisplayName("모르는 주문 식별자면, PAYMENT_NOT_FOUND 예외가 발생하고 PG 를 조회하지 않는다.")
+        @Test
+        void throwsPaymentNotFound_whenProviderOrderIdIsUnknown() {
+            CoreException result = assertThrows(CoreException.class,
+                () -> orderPaymentFacade.handleCallback(Payment.providerOrderIdOf(999L)));
+
+            assertAll(
+                () -> assertThat(result.getErrorCode()).isEqualTo(PaymentErrorCode.PAYMENT_NOT_FOUND),
+                () -> assertThat(gateway.lookups()).isEmpty()
+            );
+        }
+
+        @DisplayName("주문 식별자가 비어 있으면, INVALID_PAYMENT_REQUEST 예외가 발생한다.")
+        @ParameterizedTest
+        @ValueSource(strings = {"", " "})
+        void throwsInvalidRequest_whenProviderOrderIdIsBlank(String providerOrderId) {
+            CoreException result = assertThrows(CoreException.class, () -> orderPaymentFacade.handleCallback(providerOrderId));
+
+            assertThat(result.getErrorCode()).isEqualTo(PaymentErrorCode.INVALID_PAYMENT_REQUEST);
+        }
+
+        @DisplayName("주문 식별자가 없으면, INVALID_PAYMENT_REQUEST 예외가 발생한다.")
+        @Test
+        void throwsInvalidRequest_whenProviderOrderIdIsNull() {
+            CoreException result = assertThrows(CoreException.class, () -> orderPaymentFacade.handleCallback(null));
+
+            assertThat(result.getErrorCode()).isEqualTo(PaymentErrorCode.INVALID_PAYMENT_REQUEST);
+        }
+    }
+
     @DisplayName("목록 · 상세 캐시는, (4주차 cache-design.md 3.3, detail-cache-design.md 3.2)")
     @Nested
     class CacheInvalidation {

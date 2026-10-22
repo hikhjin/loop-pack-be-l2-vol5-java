@@ -39,6 +39,11 @@ public class FakePaymentRepository implements PaymentRepository {
         return payments.values().stream().filter(payment -> payment.getAttemptKey().equals(attemptKey)).findFirst();
     }
 
+    @Override
+    public Optional<Payment> findByProviderOrderId(String providerOrderId) {
+        return payments.values().stream().filter(payment -> providerOrderId.equals(payment.getProviderOrderId())).findFirst();
+    }
+
     public int count() {
         return payments.size();
     }

@@ -373,6 +373,81 @@ class PaymentIntegrationTest {
         }
     }
 
+    @DisplayName("콜백과 reconcile 은, ")
+    @Nested
+    class CallbackAndReconcile {
+        private OrderInfo callback(Order order) {
+            return orderPaymentFacade.handleCallback(providerOrderIdOf(order));
+        }
+
+        @DisplayName("콜백이 먼저 와도, 같은 거래 키 · CONFIRMED 이고 뒤의 reconcile 은 조회 없이 저장 상태를 돌려준다.")
+        @Test
+        void settlesOnce_whenCallbackComesFirst() {
+            // arrange
+            Order order = persistDraft(2);
+            confirm(order);
+            String transactionKey = onlyTransactionKeyOf(order);
+            pg.complete(transactionKey, "SUCCESS");
+
+            // act
+            OrderInfo byCallback = callback(order);
+            int lookupsAfterCallback = pg.lookupCount();
+            OrderInfo byReconcile = reconcile(order);
+
+            // assert
+            assertAll(
+                () -> assertThat(byCallback.status()).isEqualTo("CONFIRMED"),
+                () -> assertThat(byReconcile.status()).isEqualTo("CONFIRMED"),
+                () -> assertThat(pg.lookupCount()).isEqualTo(lookupsAfterCallback),
+                () -> assertThat(query("select transaction_key from payment where order_id = " + order.getId())).isEqualTo(transactionKey),
+                () -> assertThat(paymentStateOf(order)).containsExactly("SUCCESS", "CONSUMED", "-"),
+                () -> assertThat(stock()).isEqualTo(3),
+                () -> assertThat(pg.createCount()).isEqualTo(1)
+            );
+        }
+
+        @DisplayName("reconcile 이 먼저 종결하면, 뒤의 콜백은 조회 없이 끝나고 반환이 늘지 않는다.")
+        @Test
+        void addsNothing_whenCallbackComesAfterReconcile() {
+            // arrange
+            Order order = persistDraft(2);
+            confirm(order);
+            pg.complete(onlyTransactionKeyOf(order), "FAILED");
+            reconcile(order);
+            int lookupsAfterReconcile = pg.lookupCount();
+
+            // act
+            OrderInfo result = callback(order);
+
+            // assert
+            assertAll(
+                () -> assertThat(result.status()).isEqualTo("PAYMENT_FAILED"),
+                () -> assertThat(pg.lookupCount()).isEqualTo(lookupsAfterReconcile),
+                () -> assertThat(paymentStateOf(order)).containsExactly("FAILED", "RELEASED", "-"),
+                () -> assertThat(stock()).isEqualTo(5)
+            );
+        }
+
+        @DisplayName("같은 콜백이 두 번 와도, 재고는 한 번만 반환된다.")
+        @Test
+        void releasesOnce_whenCallbackIsDuplicated() {
+            // arrange
+            Order order = persistDraft(2);
+            confirm(order);
+            pg.complete(onlyTransactionKeyOf(order), "FAILED");
+
+            // act
+            callback(order);
+            OrderInfo second = callback(order);
+
+            // assert
+            assertAll(
+                () -> assertThat(second.status()).isEqualTo("PAYMENT_FAILED"),
+                () -> assertThat(stock()).isEqualTo(5)
+            );
+        }
+    }
+
     @DisplayName("발송 기록 뒤 프로세스가 멈췄다가 다시 뜨면, ")
     @Nested
     class Restart {

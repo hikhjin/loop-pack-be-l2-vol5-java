@@ -34,6 +34,12 @@ public class PaymentService {
             .orElseThrow(() -> new CoreException(PaymentErrorCode.PAYMENT_NOT_FOUND));
     }
 
+    @Transactional(readOnly = true)
+    public Payment getByProviderOrderId(String providerOrderId) {
+        return paymentRepository.findByProviderOrderId(providerOrderId)
+            .orElseThrow(() -> new CoreException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+    }
+
     /** 재고를 다루기 전에 부름 */
     @Transactional(readOnly = true)
     public void validateAttemptKeyAvailable(String attemptKey) {
