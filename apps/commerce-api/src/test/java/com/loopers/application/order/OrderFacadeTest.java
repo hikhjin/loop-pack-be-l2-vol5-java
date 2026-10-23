@@ -11,6 +11,9 @@ import com.loopers.domain.order.OrderStatus;
 import com.loopers.domain.point.FakePointRepository;
 import com.loopers.domain.point.PointErrorCode;
 import com.loopers.domain.point.PointService;
+import com.loopers.domain.product.FakeProductLikeCountRepository;
+import com.loopers.domain.product.FakeProductDetailCache;
+import com.loopers.domain.product.FakeProductListCache;
 import com.loopers.domain.product.FakeProductRepository;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductErrorCode;
@@ -79,6 +82,8 @@ class OrderFacadeTest {
     private PointService pointService;
     private MutableClock clock;
     private OrderFacade orderFacade;
+    private FakeProductListCache productListCache;
+    private FakeProductDetailCache productDetailCache;
     private Brand brand;
 
     @BeforeEach
@@ -89,8 +94,11 @@ class OrderFacadeTest {
         orderRepository = new FakeOrderRepository();
         pointService = new PointService(pointRepository);
         clock = new MutableClock(CREATED_AT);
-        ProductService productService = new ProductService(productRepository, clock);
-        orderFacade = new OrderFacade(new OrderService(orderRepository, clock), productService, pointService);
+        ProductService productService = new ProductService(productRepository, new FakeProductLikeCountRepository(), clock);
+        productListCache = new FakeProductListCache();
+        productDetailCache = new FakeProductDetailCache();
+        orderFacade = new OrderFacade(new OrderService(orderRepository, clock), productService, pointService, productListCache,
+            productDetailCache);
         brand = brandRepository.save(new Brand("브랜드", null));
     }
 
@@ -390,6 +398,65 @@ class OrderFacadeTest {
             assertAll(
                 () -> assertThat(confirmed.getStatus()).isEqualTo(OrderStatus.CONFIRMED),
                 () -> assertThat(confirmed.getPaidAt()).isEqualTo(CREATED_AT.plusMinutes(30).minusSeconds(1))
+            );
+        }
+    }
+
+    @DisplayName("주문을 확정할 때 목록 · 상세 캐시는, (4주차 cache-design.md 3.3, detail-cache-design.md 3.2)")
+    @Nested
+    class ListCacheInvalidation {
+        @DisplayName("이번 차감으로 품절이 된 상품이 있으면, 그 상품의 브랜드 목록과 그 상품의 상세만 무효화한다.")
+        @Test
+        void invalidatesBrand_whenProductBecomesSoldOut() {
+            // arrange
+            Product soldOutLater = saveProduct(1_000L, 2);
+            Product remaining = saveProduct(1_000L, 10);
+            pointService.charge(USER_ID, 10_000L);
+            Order order = createOrder(line(soldOutLater, 2), line(remaining, 1));
+
+            // act
+            confirm(USER_ID, order.getId());
+
+            // assert
+            assertAll(
+                () -> assertThat(productListCache.invalidatedBrandIds()).containsExactly(brand.getId()),
+                () -> assertThat(productDetailCache.invalidatedProductIds()).containsExactly(soldOutLater.getId())
+            );
+        }
+
+        @DisplayName("재고가 남으면 품절 여부가 바뀌지 않아, 무효화하지 않는다.")
+        @Test
+        void doesNotInvalidate_whenNoProductBecomesSoldOut() {
+            // arrange
+            Product product = saveProduct(1_000L, 10);
+            pointService.charge(USER_ID, 10_000L);
+            Order order = createOrder(line(product, 9));
+
+            // act
+            confirm(USER_ID, order.getId());
+
+            // assert
+            assertAll(
+                () -> assertThat(productListCache.invalidatedBrandIds()).isEmpty(),
+                () -> assertThat(productDetailCache.invalidatedProductIds()).isEmpty()
+            );
+        }
+
+        @DisplayName("확정이 실패하면, 품절이 될 뻔한 상품이 있어도 무효화하지 않는다.")
+        @Test
+        void doesNotInvalidate_whenConfirmFails() {
+            // arrange
+            Product product = saveProduct(1_000L, 1);
+            pointService.charge(USER_ID, 999L);
+            Order order = createOrder(line(product, 1));
+
+            // act
+            assertThrows(CoreException.class, () -> confirm(USER_ID, order.getId()));
+
+            // assert
+            assertAll(
+                () -> assertThat(productListCache.invalidatedBrandIds()).isEmpty(),
+                () -> assertThat(productDetailCache.invalidatedProductIds()).isEmpty()
             );
         }
     }
