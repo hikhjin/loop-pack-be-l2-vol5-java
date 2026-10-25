@@ -60,6 +60,7 @@ AI와 함께 이 저장소에서 기능을 구현할 때 따르는 규칙입니�
 | `vo` | 값 객체 · 결과 타입 (record, sealed interface) | `ProviderTransaction`, `PaymentCreateResult` |
 | `repository` | 저장소 인터페이스 | `PaymentRepository` |
 | `gateway` | 외부 시스템 포트 인터페이스와 그 요청 타입 | `PaymentGateway`, `PaymentGatewayRequest` |
+| `cache` | 캐시 포트 인터페이스 | `ProductListCache`, `ProductDetailCache` |
 | `service` | 도메인 서비스 | `PaymentService` |
 
 - 패키지 이름에 `enum` 은 쓸 수 없다(예약어). `enums` 로 쓴다.
