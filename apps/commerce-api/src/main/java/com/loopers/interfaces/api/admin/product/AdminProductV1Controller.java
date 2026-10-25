@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.admin.product;
 
-import com.loopers.application.product.AdminProductFacade;
+import com.loopers.application.product.facade.AdminProductFacade;
 import com.loopers.interfaces.api.ApiResponse;
 import com.loopers.interfaces.api.PageQuery;
 import com.loopers.interfaces.api.PageResponse;

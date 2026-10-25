@@ -1,6 +1,6 @@
 package com.loopers.application.brand.facade;
 
-import com.loopers.application.product.AdminProductFacade;
+import com.loopers.application.product.facade.AdminProductFacade;
 import com.loopers.domain.brand.entity.Brand;
 import com.loopers.support.ConcurrentRunner;
 import com.loopers.utils.DatabaseCleanUp;

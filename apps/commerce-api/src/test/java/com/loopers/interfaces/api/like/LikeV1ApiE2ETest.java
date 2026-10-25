@@ -1,12 +1,12 @@
 package com.loopers.interfaces.api.like;
 
 import com.loopers.domain.brand.entity.Brand;
-import com.loopers.domain.product.Product;
-import com.loopers.domain.product.ProductService;
+import com.loopers.domain.product.entity.Product;
+import com.loopers.domain.product.service.ProductService;
 import com.loopers.domain.user.entity.User;
 import com.loopers.infrastructure.brand.persistence.BrandJpaRepository;
 import com.loopers.infrastructure.like.persistence.LikeJpaRepository;
-import com.loopers.infrastructure.product.ProductJpaRepository;
+import com.loopers.infrastructure.product.persistence.ProductJpaRepository;
 import com.loopers.infrastructure.user.persistence.UserJpaRepository;
 import com.loopers.utils.DatabaseCleanUp;
 import org.junit.jupiter.api.AfterEach;

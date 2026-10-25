@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.product;
 
-import com.loopers.application.product.ProductInfo;
+import com.loopers.application.product.dto.ProductInfo;
 
 public class ProductV1Dto {
 

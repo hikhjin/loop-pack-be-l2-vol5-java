@@ -1,7 +1,7 @@
 package com.loopers.application.like.dto;
 
 import com.loopers.domain.like.vo.LikedProduct;
-import com.loopers.domain.product.Product;
+import com.loopers.domain.product.entity.Product;
 
 import java.time.ZonedDateTime;
 

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.config.ProductCacheRedisConfig;
 import com.loopers.config.redis.RedisNodeInfo;
 import com.loopers.config.redis.RedisProperties;
-import com.loopers.domain.product.ProductView;
+import com.loopers.domain.product.vo.ProductView;
 import com.loopers.utils.RedisCleanUp;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.ReadFrom;

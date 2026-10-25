@@ -1,7 +1,7 @@
 package com.loopers.application.order.facade;
 
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
-import com.loopers.application.product.AdminProductFacade;
+import com.loopers.application.product.facade.AdminProductFacade;
 import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.order.entity.Order;
 import com.loopers.domain.order.enums.OrderErrorCode;
@@ -12,9 +12,9 @@ import com.loopers.domain.payment.vo.PaymentLookupResult;
 import com.loopers.domain.payment.vo.ProviderTransaction;
 import com.loopers.domain.payment.enums.ProviderTransactionStatus;
 import com.loopers.domain.point.entity.Point;
-import com.loopers.domain.product.Product;
-import com.loopers.domain.product.ProductDetailCache;
-import com.loopers.domain.product.ProductListCache;
+import com.loopers.domain.product.entity.Product;
+import com.loopers.domain.product.cache.ProductDetailCache;
+import com.loopers.domain.product.cache.ProductListCache;
 import com.loopers.support.error.CoreException;
 import com.loopers.infrastructure.payment.client.TestPgLookupPolicyProperties;
 import com.loopers.support.pg.TestPgGateways;

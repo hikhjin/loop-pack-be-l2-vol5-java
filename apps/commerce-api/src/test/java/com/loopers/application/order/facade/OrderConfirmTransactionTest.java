@@ -7,7 +7,7 @@ import com.loopers.domain.order.entity.Order;
 import com.loopers.domain.order.vo.OrderLine;
 import com.loopers.domain.order.service.OrderService;
 import com.loopers.domain.payment.entity.Payment;
-import com.loopers.domain.product.Product;
+import com.loopers.domain.product.entity.Product;
 import com.loopers.support.pg.TestPgServer;
 import com.loopers.utils.DatabaseCleanUp;
 import jakarta.persistence.EntityManager;

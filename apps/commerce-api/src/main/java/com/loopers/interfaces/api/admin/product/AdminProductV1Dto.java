@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.admin.product;
 
-import com.loopers.application.product.AdminProductInfo;
+import com.loopers.application.product.dto.AdminProductInfo;
 
 import java.time.ZonedDateTime;
 

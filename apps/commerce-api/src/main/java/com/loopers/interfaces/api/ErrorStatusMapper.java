@@ -4,7 +4,7 @@ import com.loopers.domain.brand.enums.BrandErrorCode;
 import com.loopers.domain.order.enums.OrderErrorCode;
 import com.loopers.domain.payment.enums.PaymentErrorCode;
 import com.loopers.domain.point.enums.PointErrorCode;
-import com.loopers.domain.product.ProductErrorCode;
+import com.loopers.domain.product.enums.ProductErrorCode;
 import com.loopers.domain.user.enums.UserErrorCode;
 import com.loopers.support.error.ErrorCode;
 import com.loopers.support.error.ErrorType;

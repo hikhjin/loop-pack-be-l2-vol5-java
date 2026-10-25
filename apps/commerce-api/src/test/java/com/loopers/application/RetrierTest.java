@@ -8,7 +8,7 @@ import com.loopers.application.point.facade.PointFacade;
 import com.loopers.application.point.dto.PointInfo;
 import com.loopers.domain.point.entity.Point;
 import com.loopers.domain.point.enums.PointErrorCode;
-import com.loopers.domain.product.ProductErrorCode;
+import com.loopers.domain.product.enums.ProductErrorCode;
 import com.loopers.domain.user.entity.User;
 import com.loopers.infrastructure.user.persistence.UserJpaRepository;
 import com.loopers.support.error.CoreException;

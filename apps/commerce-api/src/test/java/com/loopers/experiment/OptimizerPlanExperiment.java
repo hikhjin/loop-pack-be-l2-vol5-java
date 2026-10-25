@@ -2,8 +2,8 @@ package com.loopers.experiment;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loopers.domain.product.ProductService;
-import com.loopers.domain.product.ProductSort;
+import com.loopers.domain.product.service.ProductService;
+import com.loopers.domain.product.enums.ProductSort;
 import com.loopers.utils.DatabaseCleanUp;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;

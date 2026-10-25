@@ -2,12 +2,12 @@ package com.loopers.application.order.facade;
 
 import com.loopers.application.order.dto.OrderInfo;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
-import com.loopers.application.product.AdminProductFacade;
+import com.loopers.application.product.facade.AdminProductFacade;
 import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.order.entity.Order;
 import com.loopers.domain.order.vo.OrderLine;
 import com.loopers.domain.payment.entity.Payment;
-import com.loopers.domain.product.Product;
+import com.loopers.domain.product.entity.Product;
 import com.loopers.support.ConcurrentRunner;
 import com.loopers.support.pg.TestPgServer;
 import com.loopers.utils.DatabaseCleanUp;

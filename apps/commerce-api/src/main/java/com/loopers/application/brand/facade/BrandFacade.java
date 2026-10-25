@@ -2,8 +2,8 @@ package com.loopers.application.brand.facade;
 
 import com.loopers.application.brand.dto.BrandInfo;
 import com.loopers.domain.brand.service.BrandService;
-import com.loopers.domain.product.ProductListCache;
-import com.loopers.domain.product.ProductService;
+import com.loopers.domain.product.cache.ProductListCache;
+import com.loopers.domain.product.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

@@ -3,7 +3,7 @@ package com.loopers.application.like.facade;
 import com.loopers.application.like.dto.LikeInfo;
 import com.loopers.application.like.dto.LikedProductInfo;
 import com.loopers.domain.like.service.LikeService;
-import com.loopers.domain.product.ProductService;
+import com.loopers.domain.product.service.ProductService;
 import com.loopers.domain.user.enums.UserErrorCode;
 import com.loopers.support.error.CoreException;
 import lombok.RequiredArgsConstructor;

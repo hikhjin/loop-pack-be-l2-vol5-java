@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.product;
 
-import com.loopers.domain.product.ProductSort;
+import com.loopers.domain.product.enums.ProductSort;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 

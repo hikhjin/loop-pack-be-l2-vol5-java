@@ -2,10 +2,10 @@ package com.loopers.interfaces.api.product;
 
 import com.loopers.application.like.facade.LikeFacade;
 import com.loopers.domain.brand.entity.Brand;
-import com.loopers.domain.product.Product;
-import com.loopers.domain.product.ProductService;
+import com.loopers.domain.product.entity.Product;
+import com.loopers.domain.product.service.ProductService;
 import com.loopers.infrastructure.brand.persistence.BrandJpaRepository;
-import com.loopers.infrastructure.product.ProductJpaRepository;
+import com.loopers.infrastructure.product.persistence.ProductJpaRepository;
 import com.loopers.utils.DatabaseCleanUp;
 import com.loopers.utils.RedisCleanUp;
 import org.junit.jupiter.api.AfterEach;

@@ -1,9 +1,9 @@
 package com.loopers.experiment;
 
-import com.loopers.application.product.ProductFacade;
-import com.loopers.domain.product.ProductDetailCache;
-import com.loopers.domain.product.ProductListCache;
-import com.loopers.domain.product.ProductSort;
+import com.loopers.application.product.facade.ProductFacade;
+import com.loopers.domain.product.cache.ProductDetailCache;
+import com.loopers.domain.product.cache.ProductListCache;
+import com.loopers.domain.product.enums.ProductSort;
 import com.loopers.utils.DatabaseCleanUp;
 import com.loopers.utils.RedisCleanUp;
 import jakarta.persistence.EntityManagerFactory;
