@@ -1,14 +1,14 @@
 package com.loopers.application.order.facade;
 
-import com.loopers.application.order.OrderFacade.OrderRequestLine;
+import com.loopers.application.order.facade.OrderFacade.OrderRequestLine;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.brand.repository.FakeBrandRepository;
-import com.loopers.domain.order.FakeOrderRepository;
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderErrorCode;
-import com.loopers.domain.order.OrderService;
-import com.loopers.domain.order.OrderStatus;
+import com.loopers.domain.order.repository.FakeOrderRepository;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.enums.OrderErrorCode;
+import com.loopers.domain.order.service.OrderService;
+import com.loopers.domain.order.enums.OrderStatus;
 import com.loopers.domain.order.enums.PaymentMethod;
 import com.loopers.domain.payment.gateway.FakePaymentGateway;
 import com.loopers.domain.payment.repository.FakePaymentRepository;
@@ -51,10 +51,9 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import com.loopers.application.order.OrderFacade;
-import com.loopers.application.order.OrderDetailInfo;
-import com.loopers.application.order.OrderInfo;
-import com.loopers.application.order.OrderSummaryInfo;
+import com.loopers.application.order.dto.OrderDetailInfo;
+import com.loopers.application.order.dto.OrderInfo;
+import com.loopers.application.order.dto.OrderSummaryInfo;
 import org.springframework.data.domain.PageRequest;
 
 /** fake 와 PG 대역으로 DB · HTTP 없이 확인함. fake 에는 rollback 이 없어 DB 기준 rollback 은 OrderConfirmTransactionTest 가 확인함 */

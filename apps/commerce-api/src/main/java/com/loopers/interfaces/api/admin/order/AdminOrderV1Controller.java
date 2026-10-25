@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.admin.order;
 
-import com.loopers.application.order.AdminOrderFacade;
+import com.loopers.application.order.facade.AdminOrderFacade;
 import com.loopers.interfaces.api.ApiResponse;
 import com.loopers.interfaces.api.PageQuery;
 import com.loopers.interfaces.api.PageResponse;

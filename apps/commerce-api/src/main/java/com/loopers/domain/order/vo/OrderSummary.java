@@ -1,5 +1,7 @@
-package com.loopers.domain.order;
+package com.loopers.domain.order.vo;
 
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.enums.OrderStatus;
 import com.loopers.domain.order.enums.PaymentMethod;
 
 import java.time.ZonedDateTime;

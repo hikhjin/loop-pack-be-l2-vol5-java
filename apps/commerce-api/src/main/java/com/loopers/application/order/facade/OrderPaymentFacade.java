@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
-import com.loopers.application.order.OrderInfo;
+import com.loopers.application.order.dto.OrderInfo;
 
 /** TX A → TX 밖 PG 호출 → TX B 순서만 정함. PG 호출 중에는 잠금을 쥐지 않고, 생성 요청은 다시 보내지 않음 (D-60) */
 @RequiredArgsConstructor

@@ -1,12 +1,14 @@
-package com.loopers.application.order;
+package com.loopers.application.order.facade;
 
-import com.loopers.application.order.OrderFacade.OrderRequestLine;
+import com.loopers.application.order.dto.OrderDetailInfo;
+import com.loopers.application.order.dto.OrderInfo;
+import com.loopers.application.order.facade.OrderFacade.OrderRequestLine;
 import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.brand.repository.FakeBrandRepository;
-import com.loopers.domain.order.FakeOrderRepository;
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderService;
-import com.loopers.domain.order.OrderStatus;
+import com.loopers.domain.order.repository.FakeOrderRepository;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.service.OrderService;
+import com.loopers.domain.order.enums.OrderStatus;
 import com.loopers.domain.payment.repository.FakePaymentRepository;
 import com.loopers.domain.payment.service.PaymentService;
 import com.loopers.domain.point.repository.FakePointRepository;

@@ -1,9 +1,9 @@
 package com.loopers.interfaces.api.order;
 
-import com.loopers.application.order.OrderDetailInfo;
-import com.loopers.application.order.OrderInfo;
-import com.loopers.application.order.OrderSummaryInfo;
-import com.loopers.application.order.OrderFacade.OrderRequestLine;
+import com.loopers.application.order.dto.OrderDetailInfo;
+import com.loopers.application.order.dto.OrderInfo;
+import com.loopers.application.order.dto.OrderSummaryInfo;
+import com.loopers.application.order.facade.OrderFacade.OrderRequestLine;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 
 import java.time.ZonedDateTime;

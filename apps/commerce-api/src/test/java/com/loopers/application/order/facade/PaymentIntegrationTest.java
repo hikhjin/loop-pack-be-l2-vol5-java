@@ -3,9 +3,9 @@ package com.loopers.application.order.facade;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.application.product.AdminProductFacade;
 import com.loopers.domain.brand.entity.Brand;
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderErrorCode;
-import com.loopers.domain.order.OrderLine;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.enums.OrderErrorCode;
+import com.loopers.domain.order.vo.OrderLine;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.payment.enums.PaymentErrorCode;
 import com.loopers.domain.payment.vo.PaymentLookupResult;
@@ -37,7 +37,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import com.loopers.application.order.OrderInfo;
+import com.loopers.application.order.dto.OrderInfo;
 
 /** 5주차 설계 10 의 장면. PG 응답 방식을 고정하고 외부 거래 수 · create 횟수와 DB 상태를 함께 비교함 */
 @SpringBootTest

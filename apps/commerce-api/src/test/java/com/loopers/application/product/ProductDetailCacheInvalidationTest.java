@@ -2,8 +2,8 @@ package com.loopers.application.product;
 
 import com.loopers.application.brand.facade.BrandFacade;
 import com.loopers.application.like.facade.LikeFacade;
-import com.loopers.application.order.OrderFacade;
-import com.loopers.application.order.OrderFacade.OrderRequestLine;
+import com.loopers.application.order.facade.OrderFacade;
+import com.loopers.application.order.facade.OrderFacade.OrderRequestLine;
 import com.loopers.application.order.facade.OrderPaymentFacade;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.application.point.facade.PointFacade;

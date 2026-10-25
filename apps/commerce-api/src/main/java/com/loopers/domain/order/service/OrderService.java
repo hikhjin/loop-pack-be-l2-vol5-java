@@ -1,5 +1,11 @@
-package com.loopers.domain.order;
+package com.loopers.domain.order.service;
 
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.enums.OrderErrorCode;
+import com.loopers.domain.order.enums.OrderStatus;
+import com.loopers.domain.order.repository.OrderRepository;
+import com.loopers.domain.order.vo.OrderLine;
+import com.loopers.domain.order.vo.OrderSummary;
 import com.loopers.support.error.CoreException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

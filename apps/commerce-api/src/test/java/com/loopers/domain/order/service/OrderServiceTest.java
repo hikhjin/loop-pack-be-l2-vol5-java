@@ -1,5 +1,10 @@
-package com.loopers.domain.order;
+package com.loopers.domain.order.service;
 
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.enums.OrderErrorCode;
+import com.loopers.domain.order.enums.OrderStatus;
+import com.loopers.domain.order.repository.FakeOrderRepository;
+import com.loopers.domain.order.vo.OrderLine;
 import com.loopers.support.error.CoreException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

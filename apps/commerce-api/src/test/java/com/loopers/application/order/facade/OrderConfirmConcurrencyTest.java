@@ -1,10 +1,11 @@
-package com.loopers.application.order;
+package com.loopers.application.order.facade;
 
+import com.loopers.application.order.dto.OrderInfo;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.application.product.AdminProductFacade;
 import com.loopers.domain.brand.entity.Brand;
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderLine;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.vo.OrderLine;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.product.Product;
 import com.loopers.support.ConcurrentRunner;
@@ -34,7 +35,6 @@ import static com.loopers.support.ConcurrentRunner.TECHNICAL_PREFIX;
 import static com.loopers.support.ConcurrentRunner.outcomeOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
-import com.loopers.application.order.facade.OrderPaymentFacade;
 
 /** 동시 결제 시작. 모든 작업이 끝난 뒤 새 트랜잭션에서 DB 를 다시 읽어 요청 결과 · PG 수신 횟수와 비교함 */
 @SpringBootTest

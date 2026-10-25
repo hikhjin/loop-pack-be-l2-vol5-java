@@ -1,5 +1,8 @@
-package com.loopers.domain.order;
+package com.loopers.domain.order.entity;
 
+import com.loopers.domain.order.enums.OrderErrorCode;
+import com.loopers.domain.order.enums.OrderStatus;
+import com.loopers.domain.order.vo.OrderLine;
 import com.loopers.support.error.CoreException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

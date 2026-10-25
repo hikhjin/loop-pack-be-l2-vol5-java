@@ -1,13 +1,13 @@
-package com.loopers.infrastructure.order;
+package com.loopers.infrastructure.order.persistence;
 
-import com.loopers.application.order.OrderFacade;
-import com.loopers.application.order.OrderDetailInfo;
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderLine;
-import com.loopers.domain.order.OrderRepository;
-import com.loopers.domain.order.OrderService;
-import com.loopers.domain.order.OrderStatus;
-import com.loopers.domain.order.OrderSummary;
+import com.loopers.application.order.facade.OrderFacade;
+import com.loopers.application.order.dto.OrderDetailInfo;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.vo.OrderLine;
+import com.loopers.domain.order.repository.OrderRepository;
+import com.loopers.domain.order.service.OrderService;
+import com.loopers.domain.order.enums.OrderStatus;
+import com.loopers.domain.order.vo.OrderSummary;
 import com.loopers.utils.DatabaseCleanUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;

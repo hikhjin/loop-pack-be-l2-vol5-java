@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.order;
 
-import com.loopers.application.order.OrderFacade;
-import com.loopers.application.order.OrderInfo;
+import com.loopers.application.order.facade.OrderFacade;
+import com.loopers.application.order.dto.OrderInfo;
 import com.loopers.application.order.facade.OrderPaymentFacade;
 import com.loopers.interfaces.api.ApiResponse;
 import com.loopers.interfaces.api.PageQuery;

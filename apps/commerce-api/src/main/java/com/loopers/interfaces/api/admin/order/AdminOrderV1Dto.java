@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.admin.order;
 
-import com.loopers.application.order.OrderInfo;
-import com.loopers.application.order.OrderSummaryInfo;
+import com.loopers.application.order.dto.OrderInfo;
+import com.loopers.application.order.dto.OrderSummaryInfo;
 
 import java.time.ZonedDateTime;
 import java.util.List;

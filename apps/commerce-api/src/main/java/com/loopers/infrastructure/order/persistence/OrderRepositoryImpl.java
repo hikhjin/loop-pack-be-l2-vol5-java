@@ -1,8 +1,8 @@
-package com.loopers.infrastructure.order;
+package com.loopers.infrastructure.order.persistence;
 
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderRepository;
-import com.loopers.domain.order.OrderStatus;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.repository.OrderRepository;
+import com.loopers.domain.order.enums.OrderStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

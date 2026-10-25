@@ -1,6 +1,6 @@
-package com.loopers.application.order;
+package com.loopers.application.order.dto;
 
-import com.loopers.domain.order.OrderSummary;
+import com.loopers.domain.order.vo.OrderSummary;
 import com.loopers.domain.payment.entity.Payment;
 
 import java.time.ZonedDateTime;

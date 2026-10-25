@@ -1,7 +1,7 @@
-package com.loopers.infrastructure.order;
+package com.loopers.infrastructure.order.persistence;
 
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderStatus;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.enums.OrderStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

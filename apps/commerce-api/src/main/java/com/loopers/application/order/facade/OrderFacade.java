@@ -1,11 +1,14 @@
-package com.loopers.application.order;
+package com.loopers.application.order.facade;
 
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderItem;
-import com.loopers.domain.order.OrderLine;
-import com.loopers.domain.order.OrderService;
-import com.loopers.domain.order.OrderStatus;
-import com.loopers.domain.order.OrderSummary;
+import com.loopers.application.order.dto.OrderDetailInfo;
+import com.loopers.application.order.dto.OrderInfo;
+import com.loopers.application.order.dto.OrderSummaryInfo;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.entity.OrderItem;
+import com.loopers.domain.order.vo.OrderLine;
+import com.loopers.domain.order.service.OrderService;
+import com.loopers.domain.order.enums.OrderStatus;
+import com.loopers.domain.order.vo.OrderSummary;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.payment.service.PaymentService;
 import com.loopers.domain.product.Product;

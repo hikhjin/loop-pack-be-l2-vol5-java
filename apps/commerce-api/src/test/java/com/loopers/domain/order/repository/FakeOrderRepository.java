@@ -1,5 +1,7 @@
-package com.loopers.domain.order;
+package com.loopers.domain.order.repository;
 
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.enums.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;

@@ -1,10 +1,11 @@
-package com.loopers.application.order;
+package com.loopers.application.order.facade;
 
+import com.loopers.application.order.dto.OrderInfo;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.domain.brand.entity.Brand;
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderLine;
-import com.loopers.domain.order.OrderService;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.vo.OrderLine;
+import com.loopers.domain.order.service.OrderService;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.product.Product;
 import com.loopers.support.pg.TestPgServer;
@@ -30,7 +31,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
-import com.loopers.application.order.facade.OrderPaymentFacade;
 
 /** TX A · TX B 가 각각 통째로 commit · rollback 되는지 확인함. 서비스 트랜잭션이 끝난 뒤 새 트랜잭션에서 다시 읽음 */
 @SpringBootTest

@@ -1,8 +1,8 @@
 package com.loopers.application.order.facade;
 
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderItem;
-import com.loopers.domain.order.OrderService;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.entity.OrderItem;
+import com.loopers.domain.order.service.OrderService;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.payment.vo.PaymentCreateResult;
 import com.loopers.domain.payment.enums.PaymentErrorCode;
@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import com.loopers.application.order.OrderInfo;
+import com.loopers.application.order.dto.OrderInfo;
 
 /** PG 결제의 로컬 트랜잭션 단계. 자기 호출로는 트랜잭션이 열리지 않아 Facade 와 bean 을 나눔. 잠금 순서는 orders → product (D-63) */
 @RequiredArgsConstructor

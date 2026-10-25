@@ -1,13 +1,13 @@
 package com.loopers.interfaces.api.admin.order;
 
-import com.loopers.domain.order.Order;
-import com.loopers.domain.order.OrderLine;
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.vo.OrderLine;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.payment.enums.ProviderTransactionStatus;
 import com.loopers.domain.payment.vo.PaymentLookupResult;
 import com.loopers.domain.payment.vo.ProviderTransaction;
 import com.loopers.domain.user.entity.User;
-import com.loopers.infrastructure.order.OrderJpaRepository;
+import com.loopers.infrastructure.order.persistence.OrderJpaRepository;
 import com.loopers.infrastructure.payment.persistence.PaymentJpaRepository;
 import com.loopers.infrastructure.user.persistence.UserJpaRepository;
 import com.loopers.utils.DatabaseCleanUp;

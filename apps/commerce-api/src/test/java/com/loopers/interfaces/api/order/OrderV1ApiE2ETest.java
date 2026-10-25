@@ -7,7 +7,7 @@ import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.user.entity.User;
 import com.loopers.infrastructure.brand.persistence.BrandJpaRepository;
-import com.loopers.infrastructure.order.OrderJpaRepository;
+import com.loopers.infrastructure.order.persistence.OrderJpaRepository;
 import com.loopers.infrastructure.product.ProductJpaRepository;
 import com.loopers.infrastructure.user.persistence.UserJpaRepository;
 import com.loopers.support.pg.TestPgServer;
