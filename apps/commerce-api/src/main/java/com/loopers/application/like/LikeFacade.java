@@ -2,7 +2,7 @@ package com.loopers.application.like;
 
 import com.loopers.domain.like.LikeService;
 import com.loopers.domain.product.ProductService;
-import com.loopers.domain.user.UserErrorCode;
+import com.loopers.domain.user.enums.UserErrorCode;
 import com.loopers.support.error.CoreException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

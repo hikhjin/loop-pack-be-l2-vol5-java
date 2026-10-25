@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.auth;
 
-import com.loopers.application.user.UserFacade;
+import com.loopers.application.user.facade.UserFacade;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;

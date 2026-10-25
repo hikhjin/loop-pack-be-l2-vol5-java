@@ -1,5 +1,6 @@
-package com.loopers.domain.user;
+package com.loopers.domain.user.service;
 
+import com.loopers.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;

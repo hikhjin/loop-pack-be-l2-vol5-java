@@ -5,7 +5,7 @@ import com.loopers.domain.order.OrderErrorCode;
 import com.loopers.domain.payment.enums.PaymentErrorCode;
 import com.loopers.domain.point.PointErrorCode;
 import com.loopers.domain.product.ProductErrorCode;
-import com.loopers.domain.user.UserErrorCode;
+import com.loopers.domain.user.enums.UserErrorCode;
 import com.loopers.support.error.ErrorCode;
 import com.loopers.support.error.ErrorType;
 import org.springframework.http.HttpStatus;

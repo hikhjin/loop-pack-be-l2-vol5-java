@@ -1,9 +1,9 @@
 package com.loopers.interfaces.api.auth;
 
-import com.loopers.application.user.UserFacade;
-import com.loopers.domain.user.FakeUserRepository;
-import com.loopers.domain.user.User;
-import com.loopers.domain.user.UserService;
+import com.loopers.application.user.facade.UserFacade;
+import com.loopers.domain.user.repository.FakeUserRepository;
+import com.loopers.domain.user.entity.User;
+import com.loopers.domain.user.service.UserService;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 import org.junit.jupiter.api.BeforeEach;

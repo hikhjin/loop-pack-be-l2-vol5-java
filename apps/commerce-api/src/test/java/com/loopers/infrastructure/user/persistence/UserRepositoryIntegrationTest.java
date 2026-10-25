@@ -1,7 +1,7 @@
-package com.loopers.infrastructure.user;
+package com.loopers.infrastructure.user.persistence;
 
-import com.loopers.domain.user.User;
-import com.loopers.domain.user.UserRepository;
+import com.loopers.domain.user.entity.User;
+import com.loopers.domain.user.repository.UserRepository;
 import com.loopers.utils.DatabaseCleanUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;

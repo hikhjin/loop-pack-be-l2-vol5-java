@@ -1,5 +1,6 @@
-package com.loopers.domain.user;
+package com.loopers.domain.user.repository;
 
+import com.loopers.domain.user.entity.User;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.LinkedHashMap;

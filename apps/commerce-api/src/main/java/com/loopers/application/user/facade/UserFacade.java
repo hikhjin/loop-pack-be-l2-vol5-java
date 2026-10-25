@@ -1,6 +1,6 @@
-package com.loopers.application.user;
+package com.loopers.application.user.facade;
 
-import com.loopers.domain.user.UserService;
+import com.loopers.domain.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

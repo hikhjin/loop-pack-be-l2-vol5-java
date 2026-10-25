@@ -1,4 +1,4 @@
-package com.loopers.domain.user;
+package com.loopers.domain.user.entity;
 
 import com.loopers.domain.BaseEntity;
 import jakarta.persistence.Entity;
