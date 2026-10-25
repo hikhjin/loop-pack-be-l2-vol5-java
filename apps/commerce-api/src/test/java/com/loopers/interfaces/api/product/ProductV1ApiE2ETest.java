@@ -1,11 +1,11 @@
 package com.loopers.interfaces.api.product;
 
-import com.loopers.application.like.LikeFacade;
-import com.loopers.domain.brand.Brand;
-import com.loopers.domain.product.Product;
-import com.loopers.domain.product.ProductService;
-import com.loopers.infrastructure.brand.BrandJpaRepository;
-import com.loopers.infrastructure.product.ProductJpaRepository;
+import com.loopers.application.like.facade.LikeFacade;
+import com.loopers.domain.brand.entity.Brand;
+import com.loopers.domain.product.entity.Product;
+import com.loopers.domain.product.service.ProductService;
+import com.loopers.infrastructure.brand.persistence.BrandJpaRepository;
+import com.loopers.infrastructure.product.persistence.ProductJpaRepository;
 import com.loopers.utils.DatabaseCleanUp;
 import com.loopers.utils.RedisCleanUp;
 import org.junit.jupiter.api.AfterEach;
@@ -57,11 +57,11 @@ class ProductV1ApiE2ETest {
     @AfterEach
     void tearDown() {
         databaseCleanUp.truncateAllTables();
-        // 목록 첫 페이지는 캐시된다. DB 를 비우면 식별자가 다시 쓰이므로 캐시도 함께 비운다 (4주차 cache-design.md)
+        // DB 를 비우면 식별자가 다시 쓰이므로 캐시도 함께 비움
         redisCleanUp.truncateAll();
     }
 
-    // 모든 상품이 좋아요 수 행을 갖도록 생성 입구로 만든다 (4주차 설계 2.2)
+    // 모든 상품이 좋아요 수 행을 갖도록 생성 입구로 만듦 (4주차 설계 2.2)
     private Product saveProduct(String name, int stock) {
         Product product = productService.create(brand, name, 1_000L);
         return productService.changeStock(product.getId(), stock).product();

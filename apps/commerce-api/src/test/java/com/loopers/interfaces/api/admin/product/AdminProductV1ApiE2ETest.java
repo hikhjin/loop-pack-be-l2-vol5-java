@@ -1,10 +1,10 @@
 package com.loopers.interfaces.api.admin.product;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loopers.domain.brand.Brand;
-import com.loopers.domain.product.Product;
-import com.loopers.infrastructure.brand.BrandJpaRepository;
-import com.loopers.infrastructure.product.ProductJpaRepository;
+import com.loopers.domain.brand.entity.Brand;
+import com.loopers.domain.product.entity.Product;
+import com.loopers.infrastructure.brand.persistence.BrandJpaRepository;
+import com.loopers.infrastructure.product.persistence.ProductJpaRepository;
 import com.loopers.utils.DatabaseCleanUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;

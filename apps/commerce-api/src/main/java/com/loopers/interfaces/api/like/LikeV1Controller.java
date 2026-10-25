@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.like;
 
-import com.loopers.application.like.LikeFacade;
-import com.loopers.application.like.LikeRetrier;
+import com.loopers.application.like.facade.LikeFacade;
+import com.loopers.application.like.facade.LikeRetrier;
 import com.loopers.interfaces.api.ApiResponse;
 import com.loopers.interfaces.api.PageQuery;
 import com.loopers.interfaces.api.PageResponse;

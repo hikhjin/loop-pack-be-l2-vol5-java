@@ -1,0 +1,38 @@
+package com.loopers.infrastructure.order.persistence;
+
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.enums.OrderStatus;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.Optional;
+
+public interface OrderJpaRepository extends JpaRepository<Order, Long> {
+
+    /** 상세와 확정은 품목이 필요해 함께 읽음 */
+    @Query("select o from Order o left join fetch o.items where o.id = :id and o.userId = :userId")
+    Optional<Order> findWithItemsByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
+
+    @Query("select o from Order o left join fetch o.items where o.id = :id")
+    Optional<Order> findWithItemsById(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from Order o left join fetch o.items where o.id = :id and o.userId = :userId")
+    Optional<Order> findWithItemsByIdAndUserIdForUpdate(@Param("id") Long id, @Param("userId") Long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from Order o left join fetch o.items where o.id = :id")
+    Optional<Order> findWithItemsByIdForUpdate(@Param("id") Long id);
+
+    @Query(
+        value = "select o from Order o where (:userId is null or o.userId = :userId) and (:status is null or o.status = :status) "
+            + "order by o.createdAt desc, o.id desc",
+        countQuery = "select count(o) from Order o where (:userId is null or o.userId = :userId) and (:status is null or o.status = :status)"
+    )
+    Page<Order> findPage(@Param("userId") Long userId, @Param("status") OrderStatus status, Pageable pageable);
+}

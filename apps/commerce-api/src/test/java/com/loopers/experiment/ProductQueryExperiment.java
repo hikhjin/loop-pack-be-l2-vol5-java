@@ -2,7 +2,7 @@ package com.loopers.experiment;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loopers.domain.product.ProductListCache;
+import com.loopers.domain.product.cache.ProductListCache;
 import com.loopers.utils.DatabaseCleanUp;
 import com.loopers.utils.RedisCleanUp;
 import org.junit.jupiter.api.AfterAll;

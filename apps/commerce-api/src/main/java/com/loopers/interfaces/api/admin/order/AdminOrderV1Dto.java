@@ -1,14 +1,14 @@
 package com.loopers.interfaces.api.admin.order;
 
-import com.loopers.application.order.OrderInfo;
-import com.loopers.application.order.OrderSummaryInfo;
+import com.loopers.application.order.dto.OrderInfo;
+import com.loopers.application.order.dto.OrderSummaryInfo;
 
 import java.time.ZonedDateTime;
 import java.util.List;
 
 public class AdminOrderV1Dto {
 
-    /** 고객 응답과 달리 구매자 식별자를 담는다 (설계 6.5). */
+    /** 고객 응답과 달리 구매자 식별자를 담음 (설계 6.5) */
     public record OrderSummaryResponse(
         Long id,
         Long userId,
@@ -17,7 +17,9 @@ public class AdminOrderV1Dto {
         Long paymentAmount,
         int itemCount,
         String representativeProductName,
-        ZonedDateTime orderedAt
+        ZonedDateTime orderedAt,
+        String paymentMethod,
+        String paymentStatus
     ) {
         public static OrderSummaryResponse from(OrderSummaryInfo info) {
             return new OrderSummaryResponse(
@@ -28,11 +30,14 @@ public class AdminOrderV1Dto {
                 info.paymentAmount(),
                 info.itemCount(),
                 info.representativeProductName(),
-                info.orderedAt()
+                info.orderedAt(),
+                info.paymentMethod(),
+                info.paymentStatus()
             );
         }
     }
 
+    /** 충돌 사유는 관리자에게만 보여 줌 (5주차 설계 7장) */
     public record OrderResponse(
         Long id,
         Long userId,
@@ -41,7 +46,10 @@ public class AdminOrderV1Dto {
         Long paymentAmount,
         ZonedDateTime paidAt,
         ZonedDateTime orderedAt,
-        List<ItemResponse> items
+        List<ItemResponse> items,
+        String paymentMethod,
+        String paymentStatus,
+        String paymentConflict
     ) {
         public record ItemResponse(Long productId, String productName, long unitPrice, int quantity, long amount) {}
 
@@ -56,7 +64,10 @@ public class AdminOrderV1Dto {
                 info.orderedAt(),
                 info.items().stream()
                     .map(item -> new ItemResponse(item.productId(), item.productName(), item.unitPrice(), item.quantity(), item.amount()))
-                    .toList()
+                    .toList(),
+                info.paymentMethod(),
+                info.paymentStatus(),
+                info.paymentConflict()
             );
         }
     }

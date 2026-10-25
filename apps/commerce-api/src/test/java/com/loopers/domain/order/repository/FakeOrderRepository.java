@@ -1,0 +1,65 @@
+package com.loopers.domain.order.repository;
+
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.enums.OrderStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+
+public class FakeOrderRepository implements OrderRepository {
+
+    private final Map<Long, Order> orders = new LinkedHashMap<>();
+    private long sequence = 0L;
+
+    @Override
+    public Order save(Order order) {
+        if (order.getId() == null || order.getId() == 0L) {
+            ReflectionTestUtils.setField(order, "id", ++sequence);
+        }
+        orders.put(order.getId(), order);
+        return order;
+    }
+
+    @Override
+    public Optional<Order> findByIdAndUserId(Long orderId, Long userId) {
+        return Optional.ofNullable(orders.get(orderId)).filter(order -> Objects.equals(order.getUserId(), userId));
+    }
+
+    @Override
+    public Optional<Order> findById(Long orderId) {
+        return Optional.ofNullable(orders.get(orderId));
+    }
+
+    // 잠금은 실제 DB 의 동시성 테스트가 확인함
+    @Override
+    public Optional<Order> findByIdAndUserIdForUpdate(Long orderId, Long userId) {
+        return findByIdAndUserId(orderId, userId);
+    }
+
+    @Override
+    public Optional<Order> findByIdForUpdate(Long orderId) {
+        return findById(orderId);
+    }
+
+    @Override
+    public Page<Order> findPage(Long userId, OrderStatus status, Pageable pageable) {
+        List<Order> matched = orders.values().stream()
+            .filter(order -> userId == null || Objects.equals(order.getUserId(), userId))
+            .filter(order -> status == null || order.getStatus() == status)
+            .sorted(Comparator.comparing(Order::getId).reversed())
+            .toList();
+        return new PageImpl<>(matched, pageable, matched.size());
+    }
+
+    public int count() {
+        return orders.size();
+    }
+}

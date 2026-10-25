@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.admin.brand;
 
-import com.loopers.application.brand.BrandFacade;
+import com.loopers.application.brand.facade.BrandFacade;
 import com.loopers.interfaces.api.ApiResponse;
 import com.loopers.interfaces.api.PageQuery;
 import com.loopers.interfaces.api.PageResponse;

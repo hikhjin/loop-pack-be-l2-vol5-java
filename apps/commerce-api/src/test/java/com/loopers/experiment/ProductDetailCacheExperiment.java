@@ -1,10 +1,10 @@
 package com.loopers.experiment;
 
-import com.loopers.application.brand.BrandFacade;
-import com.loopers.application.product.AdminProductFacade;
-import com.loopers.domain.product.ProductDetailCache;
-import com.loopers.domain.product.ProductView;
-import com.loopers.infrastructure.product.RedisProductDetailCache;
+import com.loopers.application.brand.facade.BrandFacade;
+import com.loopers.application.product.facade.AdminProductFacade;
+import com.loopers.domain.product.cache.ProductDetailCache;
+import com.loopers.domain.product.vo.ProductView;
+import com.loopers.infrastructure.product.cache.RedisProductDetailCache;
 import com.loopers.utils.DatabaseCleanUp;
 import com.loopers.utils.RedisCleanUp;
 import jakarta.persistence.EntityManagerFactory;

@@ -1,0 +1,26 @@
+package com.loopers.domain.order.repository;
+
+import com.loopers.domain.order.entity.Order;
+import com.loopers.domain.order.enums.OrderStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+import java.util.Optional;
+
+public interface OrderRepository {
+    Order save(Order order);
+
+    /** 타인의 주문은 없는 주문과 같음 (ORD-06) */
+    Optional<Order> findByIdAndUserId(Long orderId, Long userId);
+
+    Optional<Order> findById(Long orderId);
+
+    /** 같은 주문의 동시 결제 시작을 줄 세움 (D-63) */
+    Optional<Order> findByIdAndUserIdForUpdate(Long orderId, Long userId);
+
+    /** 같은 주문의 결과 적용을 한 번만 일어나게 함 (D-63) */
+    Optional<Order> findByIdForUpdate(Long orderId);
+
+    /** 주문 시각 desc, 식별자 desc. null 인 조건으로는 거르지 않음 */
+    Page<Order> findPage(Long userId, OrderStatus status, Pageable pageable);
+}

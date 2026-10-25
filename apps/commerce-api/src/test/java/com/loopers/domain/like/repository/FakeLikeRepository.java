@@ -1,0 +1,43 @@
+package com.loopers.domain.like.repository;
+
+import com.loopers.domain.like.entity.Like;
+import com.loopers.domain.like.vo.LikedProduct;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+public class FakeLikeRepository implements LikeRepository {
+
+    private final List<Like> likes = new ArrayList<>();
+    private long sequence = 0L;
+
+    @Override
+    public Like save(Like like) {
+        ReflectionTestUtils.setField(like, "id", ++sequence);
+        likes.add(like);
+        return like;
+    }
+
+    @Override
+    public Optional<Like> find(Long userId, Long productId) {
+        return likes.stream()
+            .filter(like -> Objects.equals(like.getUserId(), userId) && Objects.equals(like.getProductId(), productId))
+            .findFirst();
+    }
+
+    @Override
+    public int delete(Long userId, Long productId) {
+        return find(userId, productId).map(like -> likes.remove(like) ? 1 : 0).orElse(0);
+    }
+
+    // 조인 조회는 저장소 통합 테스트가 확인함
+    @Override
+    public Page<LikedProduct> findLikedProducts(Long userId, Pageable pageable) {
+        throw new UnsupportedOperationException("LikeRepositoryIntegrationTest 에서 확인한다");
+    }
+}

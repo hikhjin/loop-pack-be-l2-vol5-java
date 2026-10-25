@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.like;
 
-import com.loopers.application.like.LikeInfo;
-import com.loopers.application.like.LikedProductInfo;
+import com.loopers.application.like.dto.LikeInfo;
+import com.loopers.application.like.dto.LikedProductInfo;
 
 import java.time.ZonedDateTime;
 
@@ -14,7 +14,7 @@ public class LikeV1Dto {
 
     public record BrandSummary(Long id, String name) {}
 
-    /** 상품 요약과 좋아요 시각. 재고 수량 대신 품절 여부만 내보낸다. */
+    /** 재고 수량 대신 품절 여부만 내보냄 */
     public record LikedProductResponse(
         Long productId,
         String name,

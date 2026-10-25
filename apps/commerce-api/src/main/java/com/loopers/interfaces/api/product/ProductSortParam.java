@@ -1,12 +1,12 @@
 package com.loopers.interfaces.api.product;
 
-import com.loopers.domain.product.ProductSort;
+import com.loopers.domain.product.enums.ProductSort;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 
 import java.util.Arrays;
 
-/** 외부 계약의 정렬 값을 도메인 정렬로 바꾼다. 모르는 값은 기본값으로 바꾸지 않고 거절한다 (설계 6.1). */
+/** 모르는 값은 기본값으로 바꾸지 않고 거절함 (설계 6.1) */
 public enum ProductSortParam {
     LATEST("latest", ProductSort.LATEST),
     PRICE_ASC("price_asc", ProductSort.PRICE_ASC),

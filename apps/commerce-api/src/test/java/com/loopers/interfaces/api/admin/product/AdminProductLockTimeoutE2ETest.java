@@ -1,8 +1,8 @@
 package com.loopers.interfaces.api.admin.product;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loopers.domain.brand.Brand;
-import com.loopers.domain.product.Product;
+import com.loopers.domain.brand.entity.Brand;
+import com.loopers.domain.product.entity.Product;
 import com.loopers.utils.DatabaseCleanUp;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
@@ -32,10 +32,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * 잠금 대기 한도(3초)와 잠금 실패 응답을 실제 DB · HTTP 로 확인함 (3주차 설계 4.5).
- * 다른 트랜잭션이 상품 행을 잠근 채로 두고 관리자 재고 변경을 호출함
- */
+/** 다른 트랜잭션이 상품 행을 잠근 채로 두고 관리자 재고 변경을 호출함 (3주차 설계 4.5) */
 @SpringBootTest
 @AutoConfigureMockMvc
 class AdminProductLockTimeoutE2ETest {

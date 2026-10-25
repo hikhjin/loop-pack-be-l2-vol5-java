@@ -5,9 +5,7 @@ import com.loopers.support.error.ErrorType;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
-/**
- * 외부 계약의 페이지(1부터)를 내부 표현(0부터)으로 바꾸는 한 곳. 잘못된 값은 기본값으로 바꾸지 않고 거절한다 (설계 6.1).
- */
+/** 외부 페이지(1부터)를 내부(0부터)로 바꾸는 한 곳. 잘못된 값은 기본값으로 바꾸지 않고 거절함 (설계 6.1) */
 public final class PageQuery {
     public static final int MAX_SIZE = 100;
 
