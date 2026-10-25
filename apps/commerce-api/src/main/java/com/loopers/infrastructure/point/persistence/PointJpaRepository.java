@@ -1,6 +1,6 @@
-package com.loopers.infrastructure.point;
+package com.loopers.infrastructure.point.persistence;
 
-import com.loopers.domain.point.Point;
+import com.loopers.domain.point.entity.Point;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

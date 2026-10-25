@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.point;
 
-import com.loopers.application.point.PointChargeRetrier;
-import com.loopers.application.point.PointFacade;
+import com.loopers.application.point.facade.PointChargeRetrier;
+import com.loopers.application.point.facade.PointFacade;
 import com.loopers.interfaces.api.ApiResponse;
 import com.loopers.interfaces.api.auth.LoginUser;
 import lombok.RequiredArgsConstructor;

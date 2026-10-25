@@ -1,6 +1,7 @@
-package com.loopers.application.point;
+package com.loopers.application.point.facade;
 
-import com.loopers.domain.point.PointService;
+import com.loopers.application.point.dto.PointInfo;
+import com.loopers.domain.point.service.PointService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

@@ -1,5 +1,6 @@
-package com.loopers.domain.point;
+package com.loopers.domain.point.entity;
 
+import com.loopers.domain.point.enums.PointErrorCode;
 import com.loopers.domain.BaseEntity;
 import com.loopers.support.error.CoreException;
 import jakarta.persistence.Column;

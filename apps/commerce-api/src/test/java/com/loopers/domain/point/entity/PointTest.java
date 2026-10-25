@@ -1,5 +1,6 @@
-package com.loopers.domain.point;
+package com.loopers.domain.point.entity;
 
+import com.loopers.domain.point.enums.PointErrorCode;
 import com.loopers.support.error.CoreException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

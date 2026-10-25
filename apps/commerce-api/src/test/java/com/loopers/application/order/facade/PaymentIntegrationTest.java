@@ -11,7 +11,7 @@ import com.loopers.domain.payment.enums.PaymentErrorCode;
 import com.loopers.domain.payment.vo.PaymentLookupResult;
 import com.loopers.domain.payment.vo.ProviderTransaction;
 import com.loopers.domain.payment.enums.ProviderTransactionStatus;
-import com.loopers.domain.point.Point;
+import com.loopers.domain.point.entity.Point;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductDetailCache;
 import com.loopers.domain.product.ProductListCache;

@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.point;
 
-import com.loopers.application.point.PointInfo;
+import com.loopers.application.point.dto.PointInfo;
 
 public class PointV1Dto {
     /**

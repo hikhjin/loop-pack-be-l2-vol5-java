@@ -7,7 +7,7 @@ import com.loopers.application.order.OrderFacade;
 import com.loopers.application.order.OrderFacade.OrderRequestLine;
 import com.loopers.application.order.facade.OrderPaymentFacade;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
-import com.loopers.application.point.PointFacade;
+import com.loopers.application.point.facade.PointFacade;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.product.ProductSort;
 import com.loopers.support.error.CoreException;

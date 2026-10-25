@@ -1,5 +1,7 @@
-package com.loopers.domain.point;
+package com.loopers.domain.point.service;
 
+import com.loopers.domain.point.entity.Point;
+import com.loopers.domain.point.repository.FakePointRepository;
 import com.loopers.support.error.CoreException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

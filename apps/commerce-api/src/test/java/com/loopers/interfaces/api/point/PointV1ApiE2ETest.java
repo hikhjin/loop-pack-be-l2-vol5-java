@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.point;
 
 import com.loopers.domain.user.entity.User;
-import com.loopers.infrastructure.point.PointJpaRepository;
+import com.loopers.infrastructure.point.persistence.PointJpaRepository;
 import com.loopers.infrastructure.user.persistence.UserJpaRepository;
 import com.loopers.utils.DatabaseCleanUp;
 import org.junit.jupiter.api.AfterEach;

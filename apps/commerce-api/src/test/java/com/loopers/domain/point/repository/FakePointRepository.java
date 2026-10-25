@@ -1,5 +1,6 @@
-package com.loopers.domain.point;
+package com.loopers.domain.point.repository;
 
+import com.loopers.domain.point.entity.Point;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.LinkedHashMap;

@@ -6,7 +6,7 @@ import com.loopers.application.order.OrderFacade;
 import com.loopers.application.order.OrderFacade.OrderRequestLine;
 import com.loopers.application.order.facade.OrderPaymentFacade;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
-import com.loopers.application.point.PointFacade;
+import com.loopers.application.point.facade.PointFacade;
 import com.loopers.domain.product.ProductErrorCode;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.pg.TestPgServer;

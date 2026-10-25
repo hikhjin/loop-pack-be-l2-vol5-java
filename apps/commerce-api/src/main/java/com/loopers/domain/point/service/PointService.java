@@ -1,5 +1,7 @@
-package com.loopers.domain.point;
+package com.loopers.domain.point.service;
 
+import com.loopers.domain.point.entity.Point;
+import com.loopers.domain.point.repository.PointRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;

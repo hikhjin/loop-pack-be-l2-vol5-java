@@ -1,7 +1,7 @@
-package com.loopers.infrastructure.point;
+package com.loopers.infrastructure.point.persistence;
 
-import com.loopers.domain.point.Point;
-import com.loopers.domain.point.PointRepository;
+import com.loopers.domain.point.entity.Point;
+import com.loopers.domain.point.repository.PointRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

@@ -6,7 +6,7 @@ import com.loopers.application.order.OrderFacade.OrderRequestLine;
 import com.loopers.application.order.facade.OrderPaymentFacade;
 import com.loopers.application.order.facade.OrderPaymentFacade.ConfirmCommand;
 import com.loopers.application.order.OrderInfo;
-import com.loopers.application.point.PointFacade;
+import com.loopers.application.point.facade.PointFacade;
 import com.loopers.application.product.AdminProductFacade;
 import com.loopers.application.product.ProductFacade;
 import com.loopers.application.product.ProductInfo;

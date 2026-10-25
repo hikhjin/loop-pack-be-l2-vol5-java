@@ -1,5 +1,6 @@
-package com.loopers.application.point;
+package com.loopers.application.point.facade;
 
+import com.loopers.application.point.dto.PointInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.retry.annotation.Backoff;
