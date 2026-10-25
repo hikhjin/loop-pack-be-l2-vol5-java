@@ -1,8 +1,8 @@
 package com.loopers.domain.product;
 
-import com.loopers.domain.brand.Brand;
-import com.loopers.domain.brand.BrandErrorCode;
-import com.loopers.domain.brand.FakeBrandRepository;
+import com.loopers.domain.brand.entity.Brand;
+import com.loopers.domain.brand.enums.BrandErrorCode;
+import com.loopers.domain.brand.repository.FakeBrandRepository;
 import com.loopers.support.error.CoreException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

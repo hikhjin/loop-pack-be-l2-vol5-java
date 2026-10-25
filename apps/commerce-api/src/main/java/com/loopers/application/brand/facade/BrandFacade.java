@@ -1,6 +1,7 @@
-package com.loopers.application.brand;
+package com.loopers.application.brand.facade;
 
-import com.loopers.domain.brand.BrandService;
+import com.loopers.application.brand.dto.BrandInfo;
+import com.loopers.domain.brand.service.BrandService;
 import com.loopers.domain.product.ProductListCache;
 import com.loopers.domain.product.ProductService;
 import lombok.RequiredArgsConstructor;

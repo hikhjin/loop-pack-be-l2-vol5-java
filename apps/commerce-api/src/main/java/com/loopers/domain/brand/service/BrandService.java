@@ -1,5 +1,8 @@
-package com.loopers.domain.brand;
+package com.loopers.domain.brand.service;
 
+import com.loopers.domain.brand.entity.Brand;
+import com.loopers.domain.brand.enums.BrandErrorCode;
+import com.loopers.domain.brand.repository.BrandRepository;
 import com.loopers.support.error.CoreException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

@@ -1,6 +1,6 @@
 package com.loopers.infrastructure.product;
 
-import com.loopers.application.brand.BrandFacade;
+import com.loopers.application.brand.facade.BrandFacade;
 import com.loopers.application.product.AdminProductFacade;
 import com.loopers.application.product.ProductFacade;
 import com.loopers.config.ProductCacheRedisConfig;

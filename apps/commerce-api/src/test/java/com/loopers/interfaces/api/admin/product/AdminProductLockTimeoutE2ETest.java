@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.admin.product;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.product.Product;
 import com.loopers.utils.DatabaseCleanUp;
 import jakarta.persistence.EntityManager;

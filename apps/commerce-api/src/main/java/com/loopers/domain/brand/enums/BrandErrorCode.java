@@ -1,4 +1,4 @@
-package com.loopers.domain.brand;
+package com.loopers.domain.brand.enums;
 
 import com.loopers.support.error.ErrorCode;
 import lombok.Getter;

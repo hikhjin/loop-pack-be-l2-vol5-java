@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api;
 
-import com.loopers.domain.brand.BrandErrorCode;
+import com.loopers.domain.brand.enums.BrandErrorCode;
 import com.loopers.domain.order.OrderErrorCode;
 import com.loopers.domain.payment.enums.PaymentErrorCode;
 import com.loopers.domain.point.PointErrorCode;

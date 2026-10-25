@@ -1,6 +1,6 @@
 package com.loopers.infrastructure.product;
 
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductRepository;
 import com.loopers.domain.product.ProductWithBrand;

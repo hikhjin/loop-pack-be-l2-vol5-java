@@ -2,11 +2,11 @@ package com.loopers.interfaces.api.order;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.user.User;
-import com.loopers.infrastructure.brand.BrandJpaRepository;
+import com.loopers.infrastructure.brand.persistence.BrandJpaRepository;
 import com.loopers.infrastructure.order.OrderJpaRepository;
 import com.loopers.infrastructure.product.ProductJpaRepository;
 import com.loopers.infrastructure.user.UserJpaRepository;

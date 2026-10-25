@@ -1,6 +1,6 @@
 package com.loopers.application.like;
 
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.product.ProductService;
 import com.loopers.support.ConcurrentRunner;
 import com.loopers.utils.DatabaseCleanUp;

@@ -1,7 +1,7 @@
 package com.loopers.application.product;
 
 import com.loopers.application.like.LikeFacade;
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductService;
 import com.loopers.domain.product.ProductSort;

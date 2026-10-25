@@ -1,8 +1,8 @@
 package com.loopers.application.order;
 
 import com.loopers.application.order.OrderFacade.OrderRequestLine;
-import com.loopers.domain.brand.Brand;
-import com.loopers.domain.brand.FakeBrandRepository;
+import com.loopers.domain.brand.entity.Brand;
+import com.loopers.domain.brand.repository.FakeBrandRepository;
 import com.loopers.domain.order.FakeOrderRepository;
 import com.loopers.domain.order.Order;
 import com.loopers.domain.order.OrderService;

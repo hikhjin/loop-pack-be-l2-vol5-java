@@ -1,6 +1,6 @@
 package com.loopers.application.product;
 
-import com.loopers.application.brand.BrandFacade;
+import com.loopers.application.brand.facade.BrandFacade;
 import com.loopers.application.like.LikeFacade;
 import com.loopers.application.order.OrderDetailInfo;
 import com.loopers.application.order.OrderFacade;

@@ -1,9 +1,9 @@
 package com.loopers.application.product;
 
-import com.loopers.domain.brand.Brand;
-import com.loopers.domain.brand.BrandErrorCode;
-import com.loopers.domain.brand.BrandService;
-import com.loopers.domain.brand.FakeBrandRepository;
+import com.loopers.domain.brand.entity.Brand;
+import com.loopers.domain.brand.enums.BrandErrorCode;
+import com.loopers.domain.brand.service.BrandService;
+import com.loopers.domain.brand.repository.FakeBrandRepository;
 import com.loopers.domain.product.FakeProductDetailCache;
 import com.loopers.domain.product.FakeProductLikeCountRepository;
 import com.loopers.domain.product.FakeProductListCache;

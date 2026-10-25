@@ -1,7 +1,7 @@
 package com.loopers.domain.like;
 
-import com.loopers.domain.brand.Brand;
-import com.loopers.domain.brand.FakeBrandRepository;
+import com.loopers.domain.brand.entity.Brand;
+import com.loopers.domain.brand.repository.FakeBrandRepository;
 import com.loopers.domain.product.FakeProductRepository;
 import com.loopers.domain.product.Product;
 import org.junit.jupiter.api.BeforeEach;

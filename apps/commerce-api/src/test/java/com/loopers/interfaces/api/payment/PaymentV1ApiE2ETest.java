@@ -1,13 +1,13 @@
 package com.loopers.interfaces.api.payment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.order.OrderStatus;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.payment.enums.PaymentStatus;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.user.User;
-import com.loopers.infrastructure.brand.BrandJpaRepository;
+import com.loopers.infrastructure.brand.persistence.BrandJpaRepository;
 import com.loopers.infrastructure.order.OrderJpaRepository;
 import com.loopers.infrastructure.payment.persistence.PaymentJpaRepository;
 import com.loopers.infrastructure.product.ProductJpaRepository;

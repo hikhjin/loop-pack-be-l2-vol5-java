@@ -1,7 +1,7 @@
-package com.loopers.infrastructure.brand;
+package com.loopers.infrastructure.brand.persistence;
 
-import com.loopers.domain.brand.Brand;
-import com.loopers.domain.brand.BrandRepository;
+import com.loopers.domain.brand.entity.Brand;
+import com.loopers.domain.brand.repository.BrandRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

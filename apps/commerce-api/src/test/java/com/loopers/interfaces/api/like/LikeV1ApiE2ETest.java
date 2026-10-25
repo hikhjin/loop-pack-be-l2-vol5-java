@@ -1,10 +1,10 @@
 package com.loopers.interfaces.api.like;
 
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductService;
 import com.loopers.domain.user.User;
-import com.loopers.infrastructure.brand.BrandJpaRepository;
+import com.loopers.infrastructure.brand.persistence.BrandJpaRepository;
 import com.loopers.infrastructure.like.LikeJpaRepository;
 import com.loopers.infrastructure.product.ProductJpaRepository;
 import com.loopers.infrastructure.user.UserJpaRepository;

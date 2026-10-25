@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.admin.brand;
 
-import com.loopers.application.brand.BrandInfo;
+import com.loopers.application.brand.dto.BrandInfo;
 
 import java.time.ZonedDateTime;
 

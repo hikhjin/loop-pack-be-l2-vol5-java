@@ -1,6 +1,6 @@
 package com.loopers.experiment;
 
-import com.loopers.application.brand.BrandFacade;
+import com.loopers.application.brand.facade.BrandFacade;
 import com.loopers.application.product.AdminProductFacade;
 import com.loopers.domain.product.ProductDetailCache;
 import com.loopers.domain.product.ProductView;

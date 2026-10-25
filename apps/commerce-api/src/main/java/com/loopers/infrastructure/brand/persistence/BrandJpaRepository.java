@@ -1,6 +1,6 @@
-package com.loopers.infrastructure.brand;
+package com.loopers.infrastructure.brand.persistence;
 
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

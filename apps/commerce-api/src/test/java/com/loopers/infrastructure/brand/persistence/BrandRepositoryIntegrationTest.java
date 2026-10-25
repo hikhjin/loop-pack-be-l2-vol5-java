@@ -1,7 +1,7 @@
-package com.loopers.infrastructure.brand;
+package com.loopers.infrastructure.brand.persistence;
 
-import com.loopers.domain.brand.Brand;
-import com.loopers.domain.brand.BrandRepository;
+import com.loopers.domain.brand.entity.Brand;
+import com.loopers.domain.brand.repository.BrandRepository;
 import com.loopers.utils.DatabaseCleanUp;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;

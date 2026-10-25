@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.brand;
 
-import com.loopers.application.brand.BrandInfo;
+import com.loopers.application.brand.dto.BrandInfo;
 
 public class BrandV1Dto {
     public record BrandResponse(Long id, String name, String description) {

@@ -1,6 +1,6 @@
 package com.loopers.infrastructure.like;
 
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.like.Like;
 import com.loopers.domain.like.LikeRepository;
 import com.loopers.domain.like.LikedProduct;

@@ -1,5 +1,6 @@
-package com.loopers.domain.brand;
+package com.loopers.domain.brand.entity;
 
+import com.loopers.domain.brand.enums.BrandErrorCode;
 import com.loopers.support.error.CoreException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

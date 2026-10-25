@@ -1,10 +1,10 @@
 package com.loopers.interfaces.api.product;
 
 import com.loopers.application.like.LikeFacade;
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductService;
-import com.loopers.infrastructure.brand.BrandJpaRepository;
+import com.loopers.infrastructure.brand.persistence.BrandJpaRepository;
 import com.loopers.infrastructure.product.ProductJpaRepository;
 import com.loopers.utils.DatabaseCleanUp;
 import com.loopers.utils.RedisCleanUp;

@@ -1,7 +1,7 @@
-package com.loopers.application.brand;
+package com.loopers.application.brand.facade;
 
 import com.loopers.application.product.AdminProductFacade;
-import com.loopers.domain.brand.Brand;
+import com.loopers.domain.brand.entity.Brand;
 import com.loopers.support.ConcurrentRunner;
 import com.loopers.utils.DatabaseCleanUp;
 import jakarta.persistence.EntityManager;
