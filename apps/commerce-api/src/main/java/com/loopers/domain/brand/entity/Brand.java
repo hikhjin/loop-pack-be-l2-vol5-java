@@ -47,14 +47,14 @@ public class Brand extends BaseEntity {
         this.description = description;
     }
 
-    // 앞뒤 공백을 자르지 않는다. 길이에는 공백이 포함된다
+    // 앞뒤 공백을 자르지 않아 길이에 공백이 포함됨
     private static void validateName(String name) {
         if (name == null || name.isBlank() || name.length() > MAX_NAME_LENGTH) {
             throw new CoreException(BrandErrorCode.INVALID_BRAND_NAME);
         }
     }
 
-    // 설명은 선택이다. 컬럼 길이(varchar 255)를 넘으면 DB 오류가 되므로 먼저 거절한다
+    // 컬럼 길이(varchar 255)를 넘으면 DB 오류가 되므로 먼저 거절함
     private static void validateDescription(String description) {
         if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new CoreException(BrandErrorCode.INVALID_BRAND_DESCRIPTION);
