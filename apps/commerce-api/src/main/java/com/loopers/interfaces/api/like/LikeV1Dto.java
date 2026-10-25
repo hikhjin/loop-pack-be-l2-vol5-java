@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.like;
 
-import com.loopers.application.like.LikeInfo;
-import com.loopers.application.like.LikedProductInfo;
+import com.loopers.application.like.dto.LikeInfo;
+import com.loopers.application.like.dto.LikedProductInfo;
 
 import java.time.ZonedDateTime;
 

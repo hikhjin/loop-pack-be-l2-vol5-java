@@ -1,4 +1,4 @@
-package com.loopers.domain.like;
+package com.loopers.domain.like.entity;
 
 import com.loopers.domain.BaseEntity;
 import jakarta.persistence.Column;

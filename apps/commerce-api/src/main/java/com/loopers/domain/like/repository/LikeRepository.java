@@ -1,5 +1,7 @@
-package com.loopers.domain.like;
+package com.loopers.domain.like.repository;
 
+import com.loopers.domain.like.entity.Like;
+import com.loopers.domain.like.vo.LikedProduct;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

@@ -5,7 +5,7 @@ import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductService;
 import com.loopers.domain.user.entity.User;
 import com.loopers.infrastructure.brand.persistence.BrandJpaRepository;
-import com.loopers.infrastructure.like.LikeJpaRepository;
+import com.loopers.infrastructure.like.persistence.LikeJpaRepository;
 import com.loopers.infrastructure.product.ProductJpaRepository;
 import com.loopers.infrastructure.user.persistence.UserJpaRepository;
 import com.loopers.utils.DatabaseCleanUp;

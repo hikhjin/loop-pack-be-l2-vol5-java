@@ -1,5 +1,6 @@
-package com.loopers.application.like;
+package com.loopers.application.like.facade;
 
+import com.loopers.application.like.dto.LikeInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.retry.annotation.Backoff;

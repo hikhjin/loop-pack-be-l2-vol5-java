@@ -1,10 +1,10 @@
-package com.loopers.infrastructure.like;
+package com.loopers.infrastructure.like.persistence;
 
 import com.loopers.domain.brand.entity.QBrand;
-import com.loopers.domain.like.Like;
-import com.loopers.domain.like.LikeRepository;
-import com.loopers.domain.like.LikedProduct;
-import com.loopers.domain.like.QLike;
+import com.loopers.domain.like.entity.Like;
+import com.loopers.domain.like.repository.LikeRepository;
+import com.loopers.domain.like.vo.LikedProduct;
+import com.loopers.domain.like.entity.QLike;
 import com.loopers.domain.product.QProduct;
 import com.loopers.domain.product.QProductLikeCount;
 import com.querydsl.core.types.Projections;

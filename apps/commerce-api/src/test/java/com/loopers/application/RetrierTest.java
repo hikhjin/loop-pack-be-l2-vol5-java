@@ -1,8 +1,8 @@
 package com.loopers.application;
 
-import com.loopers.application.like.LikeFacade;
-import com.loopers.application.like.LikeInfo;
-import com.loopers.application.like.LikeRetrier;
+import com.loopers.application.like.facade.LikeFacade;
+import com.loopers.application.like.dto.LikeInfo;
+import com.loopers.application.like.facade.LikeRetrier;
 import com.loopers.application.point.facade.PointChargeRetrier;
 import com.loopers.application.point.facade.PointFacade;
 import com.loopers.application.point.dto.PointInfo;

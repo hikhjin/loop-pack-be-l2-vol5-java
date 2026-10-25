@@ -1,6 +1,6 @@
-package com.loopers.application.like;
+package com.loopers.application.like.dto;
 
-import com.loopers.domain.like.LikedProduct;
+import com.loopers.domain.like.vo.LikedProduct;
 import com.loopers.domain.product.Product;
 
 import java.time.ZonedDateTime;

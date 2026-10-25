@@ -1,5 +1,6 @@
-package com.loopers.domain.like;
+package com.loopers.domain.like.service;
 
+import com.loopers.domain.like.repository.FakeLikeRepository;
 import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.brand.repository.FakeBrandRepository;
 import com.loopers.domain.product.FakeProductRepository;

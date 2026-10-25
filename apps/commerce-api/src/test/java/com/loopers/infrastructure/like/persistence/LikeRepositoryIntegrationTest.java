@@ -1,7 +1,7 @@
-package com.loopers.infrastructure.like;
+package com.loopers.infrastructure.like.persistence;
 
-import com.loopers.domain.like.Like;
-import com.loopers.domain.like.LikeRepository;
+import com.loopers.domain.like.entity.Like;
+import com.loopers.domain.like.repository.LikeRepository;
 import com.loopers.utils.DatabaseCleanUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;

@@ -1,9 +1,9 @@
-package com.loopers.infrastructure.like;
+package com.loopers.infrastructure.like.persistence;
 
 import com.loopers.domain.brand.entity.Brand;
-import com.loopers.domain.like.Like;
-import com.loopers.domain.like.LikeRepository;
-import com.loopers.domain.like.LikedProduct;
+import com.loopers.domain.like.entity.Like;
+import com.loopers.domain.like.repository.LikeRepository;
+import com.loopers.domain.like.vo.LikedProduct;
 import com.loopers.domain.product.Product;
 import com.loopers.domain.product.ProductLikeCount;
 import com.loopers.domain.product.ProductLikeCountRepository;

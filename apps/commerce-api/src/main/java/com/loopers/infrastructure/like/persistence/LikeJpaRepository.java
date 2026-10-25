@@ -1,6 +1,6 @@
-package com.loopers.infrastructure.like;
+package com.loopers.infrastructure.like.persistence;
 
-import com.loopers.domain.like.Like;
+import com.loopers.domain.like.entity.Like;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

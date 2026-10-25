@@ -1,5 +1,8 @@
-package com.loopers.domain.like;
+package com.loopers.domain.like.service;
 
+import com.loopers.domain.like.entity.Like;
+import com.loopers.domain.like.repository.LikeRepository;
+import com.loopers.domain.like.vo.LikedProduct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

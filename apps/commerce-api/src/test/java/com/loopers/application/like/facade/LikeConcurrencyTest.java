@@ -1,4 +1,4 @@
-package com.loopers.application.like;
+package com.loopers.application.like.facade;
 
 import com.loopers.domain.brand.entity.Brand;
 import com.loopers.domain.product.ProductService;
