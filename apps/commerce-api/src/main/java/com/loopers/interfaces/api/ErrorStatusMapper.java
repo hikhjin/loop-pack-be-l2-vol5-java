@@ -12,9 +12,7 @@ import org.springframework.http.HttpStatus;
 
 import java.util.Map;
 
-/**
- * 업무 오류 코드를 HTTP 상태로 바꾸는 한 곳. 대응표에 없는 코드는 500 으로 응답한다.
- */
+/** 업무 오류 코드를 HTTP 상태로 바꾸는 한 곳. 대응표에 없으면 500 */
 public final class ErrorStatusMapper {
 
     private static final Map<ErrorCode, HttpStatus> STATUSES = Map.ofEntries(

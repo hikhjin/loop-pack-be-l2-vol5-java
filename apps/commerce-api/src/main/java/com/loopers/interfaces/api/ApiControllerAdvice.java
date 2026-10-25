@@ -114,10 +114,7 @@ public class ApiControllerAdvice {
         return failureResponse(ErrorType.NOT_FOUND, null);
     }
 
-    /**
-     * 잠금 대기 시간 초과와 교착을 같은 코드로 응답하고 원인은 로그로 구분함. 품절 · 잔액 부족으로 바꾸지 않음.
-     * 교착은 잠금 순서(brand → product, ID 오름차순)가 어딘가에서 지켜지지 않았다는 신호라 error 로 남김 (3주차 설계 4.5)
-     */
+    /** 대기 초과와 교착은 같은 코드로 응답하되, 교착은 잠금 순서가 깨졌다는 신호라 error 로 남김 (3주차 설계 4.5) */
     @ExceptionHandler
     public ResponseEntity<ApiResponse<?>> handle(PessimisticLockingFailureException e) {
         if (sqlErrorCodeOf(e) == MYSQL_DEADLOCK) {
@@ -128,10 +125,7 @@ public class ApiControllerAdvice {
         return failureResponse(ErrorType.LOCK_ACQUISITION_FAILED, null);
     }
 
-    /**
-     * 낙관적 잠금 충돌이 ~Retrier 의 재시도 한도를 넘어 나온 경우. 버전을 가진 행을 바꾸는 경로는 모두 ~Retrier 를 거치므로
-     * 여기에 오면 곧 한도 초과이며, 재고 · 잔액 부족과 구분해 알림 (3주차 설계 4.4)
-     */
+    /** 버전 행을 바꾸는 경로는 모두 ~Retrier 를 거치므로 여기 오면 재시도 한도 초과임 (3주차 설계 4.4) */
     @ExceptionHandler
     public ResponseEntity<ApiResponse<?>> handle(OptimisticLockingFailureException e) {
         log.warn("Concurrent update retries exhausted : {}", e.getMessage(), e);

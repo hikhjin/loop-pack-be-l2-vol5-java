@@ -11,10 +11,7 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
-/**
- * X-USER-ID 헤더를 읽어 존재까지 확인한다. 누락 · 형식 오류 · 없는 사용자는 모두 UNAUTHENTICATED 다 (설계 6.1).
- * 파라미터에 LoginUser 를 선언한 곳에서만 동작하므로, 요청자가 필요한 API 가 이 확인을 빠뜨릴 수 없다.
- */
+/** LoginUser 파라미터에만 동작해 요청자가 필요한 API 가 존재 확인을 빠뜨릴 수 없게 함 (설계 6.1) */
 @RequiredArgsConstructor
 @Component
 public class LoginUserArgumentResolver implements HandlerMethodArgumentResolver {

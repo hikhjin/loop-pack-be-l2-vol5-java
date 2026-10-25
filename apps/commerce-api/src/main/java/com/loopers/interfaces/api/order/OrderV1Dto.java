@@ -11,7 +11,7 @@ import java.util.List;
 
 public class OrderV1Dto {
 
-    /** 수량은 원시 타입이라 누락 · 소수는 400 이다. items 가 없으면 빈 주문으로 보고 EMPTY_ORDER_ITEMS 로 거절한다. */
+    /** 수량은 원시 타입이라 누락 · 소수는 400. items 가 없으면 빈 주문으로 거절함 */
     public record CreateRequest(List<Item> items) {
         public record Item(long productId, int quantity) {}
 
@@ -72,7 +72,7 @@ public class OrderV1Dto {
         }
     }
 
-    /** 내 주문 상세. 품목마다 판매 여부를 담아 삭제된 상품은 판매종료로 보여줄 수 있게 함 (설계 6.4) */
+    /** 삭제된 상품을 판매종료로 보여줄 수 있도록 품목마다 판매 여부를 담음 (설계 6.4) */
     public record OrderDetailResponse(
         Long id,
         String status,

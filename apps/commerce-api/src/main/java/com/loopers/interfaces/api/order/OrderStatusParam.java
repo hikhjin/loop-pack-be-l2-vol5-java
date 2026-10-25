@@ -6,12 +6,12 @@ import com.loopers.support.error.ErrorType;
 
 import java.util.Arrays;
 
-/** 외부 계약의 주문 상태 필터 값을 바꾼다. 모르는 값은 기본값으로 바꾸지 않고 거절한다 (설계 6.1). */
+/** 모르는 값은 기본값으로 바꾸지 않고 거절함 (설계 6.1) */
 public final class OrderStatusParam {
 
     private OrderStatusParam() {}
 
-    /** 값이 없으면 null (거르지 않음). */
+    /** 값이 없으면 null (거르지 않음) */
     public static OrderStatus toStatus(String value) {
         if (value == null) {
             return null;

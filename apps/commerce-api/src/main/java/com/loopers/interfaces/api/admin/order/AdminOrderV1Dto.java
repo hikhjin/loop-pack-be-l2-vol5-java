@@ -8,7 +8,7 @@ import java.util.List;
 
 public class AdminOrderV1Dto {
 
-    /** 고객 응답과 달리 구매자 식별자를 담는다 (설계 6.5). */
+    /** 고객 응답과 달리 구매자 식별자를 담음 (설계 6.5) */
     public record OrderSummaryResponse(
         Long id,
         Long userId,
