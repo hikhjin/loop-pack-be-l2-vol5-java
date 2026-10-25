@@ -26,7 +26,7 @@ public record ProductInfo(
         );
     }
 
-    /** 고객에게는 재고 수량 대신 품절 여부만 내보낸다 (설계 2.4, 4주차 cache-design.md 3.3) */
+    /** 고객에게는 재고 수량 대신 품절 여부만 내보냄 (설계 2.4) */
     public boolean soldOut() {
         return Product.isSoldOut(stock);
     }

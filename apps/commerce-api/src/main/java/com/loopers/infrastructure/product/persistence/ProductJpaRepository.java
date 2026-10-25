@@ -50,9 +50,7 @@ public interface ProductJpaRepository extends JpaRepository<Product, Long> {
     )
     Page<ProductWithBrand> findActiveWithBrand(@Param("brandId") Long brandId, Pageable pageable);
 
-    /**
-     * 영속성 컨텍스트를 비우지 않는다. 같은 트랜잭션에서 이미 조회한 브랜드의 삭제가 commit 때 반영되어야 한다 (3주차 설계 2.3)
-     */
+    /** 같은 트랜잭션에서 조회한 브랜드의 삭제가 commit 때 반영되도록 영속성 컨텍스트를 비우지 않음 (3주차 설계 2.3) */
     @Modifying
     @Query("update Product p set p.deletedAt = :deletedAt, p.updatedAt = :deletedAt "
         + "where p.brand.id = :brandId and p.deletedAt is null")

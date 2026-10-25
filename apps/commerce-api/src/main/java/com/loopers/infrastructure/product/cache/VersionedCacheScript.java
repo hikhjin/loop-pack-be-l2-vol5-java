@@ -7,14 +7,10 @@ import org.springframework.data.redis.core.script.RedisScript;
 import java.util.List;
 
 /**
- * 버전 키를 읽고 그 버전의 데이터 키를 같은 호출 안에서 읽는 스크립트 (4주차 docs/week4/detail-cache-design.md 3.1, 4).
- * hit 의 Redis 왕복을 2회(버전 → 데이터)에서 1회로 줄인다. 데이터 키는 "접두사 + 버전 + 접미사"로 스크립트 안에서 만들므로,
- * 버전 뒤에 정렬이 붙는 목록 키(:sort=…)와 상세 키를 같은 스크립트로 읽는다 (cache-design.md 4.1).
+ * hit 의 Redis 왕복을 1회로 줄이려 버전과 그 버전의 데이터를 한 스크립트로 읽음 (4주차 detail-cache-design 3.1).
  * <ul>
- *   <li>버전 키가 없으면 넘겨받은 현재 시각(ms)으로 만든다. 0 · 1 로 다시 세면 예전 데이터 키와 번호가 겹친다 (cache-design.md 3.5)</li>
- *   <li>버전과 데이터를 모두 master 에서 읽는다. 버전을 replica 에서 읽으면 복제 지연 동안 옛 버전을 읽는다 (cache-design.md 4.1)</li>
- *   <li>스크립트가 쓰는 데이터 키를 KEYS 로 넘기지 않으므로 단일 노드 · master-replica 구성에서만 쓴다.
- *       Redis Cluster 로 옮기면 두 키를 같은 슬롯에 두는 해시 태그가 필요하다 (detail-cache-design.md 9)</li>
+ *   <li>버전 키가 없으면 현재 시각(ms)으로 만듦. 0부터 다시 세면 예전 데이터 키와 겹침 (cache-design 3.5)</li>
+ *   <li>데이터 키를 KEYS 로 넘기지 않아 Redis Cluster 에서는 해시 태그가 필요함 (detail-cache-design 9)</li>
  * </ul>
  */
 final class VersionedCacheScript {
@@ -27,7 +23,7 @@ final class VersionedCacheScript {
             + "return { v, redis.call('GET', ARGV[1] .. v .. ARGV[2]) }",
         List.class);
 
-    /** 읽은 버전과 그 버전의 데이터. 데이터가 없으면(miss) null */
+    /** miss 면 data 는 null */
     record Result(long version, String data) {}
 
     private VersionedCacheScript() {

@@ -7,11 +7,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
-/**
- * 상품별 좋아요 수. 목록 조회마다 관계를 집계하지 않도록 따로 둔 값이다 (4주차 설계 docs/week4/like-count-design.md).
- * 재고 · 가격을 잠그는 product 행과 잠금이 겹치지 않도록 별도 테이블에 둔다.
- * 상품을 만들 때 0 으로 함께 만들고, 증감은 관계가 실제로 생기거나 지워졌을 때 원자적 갱신으로만 한다.
- */
+/** 조회마다 집계하지 않도록 둔 좋아요 수. product 행과 잠금이 겹치지 않게 별도 테이블에 둠 (4주차 like-count-design) */
 @Entity
 @Table(
     name = "product_like_count",

@@ -2,10 +2,7 @@ package com.loopers.domain.product.vo;
 
 import java.time.ZonedDateTime;
 
-/**
- * 상품과 브랜드 정보를 함께 가져오는 조회 결과 타입 (설계 4.5).
- * Product 는 Brand 를 밖으로 내보내지 않으므로(D-36) 응답의 브랜드 정보는 이 타입에서 가져온다.
- */
+/** Product 는 Brand 를 내보내지 않으므로 응답의 브랜드 정보는 여기서 가져옴 (D-36) */
 public record ProductWithBrand(
     Long id,
     String name,

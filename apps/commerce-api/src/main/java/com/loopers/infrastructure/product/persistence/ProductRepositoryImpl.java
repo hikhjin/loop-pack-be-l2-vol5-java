@@ -102,7 +102,7 @@ public class ProductRepositoryImpl implements ProductRepository {
         return productJpaRepository.deleteAllOfBrand(brandId, deletedAt);
     }
 
-    // 좋아요 수는 관계를 집계하지 않고 좋아요 수 행에서 읽는다. 모든 상품이 행을 가지므로 inner join 이다 (4주차 설계 2.2, 4.1)
+    // 모든 상품이 좋아요 수 행을 가지므로 inner join (4주차 설계 2.2, 4.1)
     private JPAQuery<ProductView> selectViews() {
         return queryFactory
             .select(Projections.constructor(ProductView.class,
@@ -117,7 +117,7 @@ public class ProductRepositoryImpl implements ProductRepository {
         return brandId == null ? null : PRODUCT.brand.id.eq(brandId);
     }
 
-    // 좋아요순의 동점은 좋아요 수 행의 상품 식별자로 가른다. 값은 상품 식별자와 같고, (like_count, product_id) 인덱스 순서와 맞는다
+    // 좋아요순 동점은 (like_count, product_id) 인덱스 순서와 맞도록 좋아요 수 행의 product_id 로 가름
     private static OrderSpecifier<?>[] orderOf(ProductSort sort) {
         return switch (sort) {
             case LATEST -> new OrderSpecifier<?>[] {PRODUCT.createdAt.desc(), PRODUCT.id.desc()};

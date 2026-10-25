@@ -22,7 +22,7 @@ public class AdminProductFacade {
     private final ProductListCache productListCache;
     private final ProductDetailCache productDetailCache;
 
-    /** 관리자 필터는 관리할 대상을 지정하므로, 없거나 삭제된 브랜드면 BRAND_NOT_FOUND 로 알린다 (설계 D-24). */
+    /** 관리자 필터는 대상을 지정하므로 없는 브랜드를 알림 (D-24) */
     public Page<AdminProductInfo> getProducts(Long brandId, Pageable pageable) {
         if (brandId != null) {
             brandService.getActiveBrand(brandId);
@@ -35,10 +35,8 @@ public class AdminProductFacade {
     }
 
     /**
-     * 살아 있는 브랜드를 공유 잠금으로 조회해 상품을 만듦. 등록 중에 브랜드가 삭제되어 삭제된 브랜드에 상품이 남는 일을 막음.
-     * 브랜드와 상품 두 도메인을 다루므로 트랜잭션을 여기서 엶 (BRD-02, 설계 4.4, 3주차 설계 4.2).
-     * 목록 캐시 무효화는 이 트랜잭션의 commit 뒤에 일어남 (4주차 cache-design.md 3.3, 3.4).
-     * 새 상품 ID 를 먼저 조회해 상세 캐시에 "없음"이 저장됐을 수 있어 그 상세도 무효화함 (detail-cache-design.md 3.3)
+     * 등록 중 브랜드가 삭제되지 않도록 공유 잠금으로 읽음 (BRD-02, 3주차 설계 4.2).
+     * 새 상품 ID 의 "없음"이 상세 캐시에 저장됐을 수 있어 상세도 무효화함 (4주차 detail-cache-design 3.3)
      */
     @Transactional
     public AdminProductInfo createProduct(Long brandId, String name, long price) {
@@ -49,7 +47,7 @@ public class AdminProductFacade {
         return getProduct(productId);
     }
 
-    // 아래 쓰기는 ProductService 의 트랜잭션이 commit 된 뒤 무효화함 (4주차 cache-design.md 3.4, detail-cache-design.md 3.2)
+    // 아래 쓰기는 ProductService 의 트랜잭션이 commit 된 뒤 무효화함 (4주차 cache-design 3.4)
     public AdminProductInfo updateProduct(Long productId, String name, long price) {
         Product product = productService.update(productId, name, price);
         productListCache.invalidate(product.getBrandId());
@@ -57,7 +55,7 @@ public class AdminProductFacade {
         return getProduct(productId);
     }
 
-    /** 품절 여부가 바뀔 때만 무효화함. 고객 응답은 재고 수량이 아니라 품절 여부만 내보냄 (4주차 cache-design.md 3.3) */
+    /** 고객 응답은 품절 여부만 내보내므로 그것이 바뀔 때만 무효화함 (4주차 cache-design 3.3) */
     public AdminProductInfo changeStock(Long productId, int stock) {
         StockChange change = productService.changeStock(productId, stock);
         if (change.soldOutChanged()) {
