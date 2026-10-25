@@ -10,7 +10,7 @@ import java.util.Optional;
 public interface OrderRepository {
     Order save(Order order);
 
-    /** 소유자까지 조건으로 건 조회. 타인의 주문은 없는 주문과 같다 (ORD-06, 설계 6.1). */
+    /** 타인의 주문은 없는 주문과 같음 (ORD-06) */
     Optional<Order> findByIdAndUserId(Long orderId, Long userId);
 
     Optional<Order> findById(Long orderId);
@@ -21,6 +21,6 @@ public interface OrderRepository {
     /** 같은 주문의 결과 적용을 한 번만 일어나게 함 (D-63) */
     Optional<Order> findByIdForUpdate(Long orderId);
 
-    /** 주문 시각 desc, 식별자 desc. userId · status 가 null 이면 그 조건으로 거르지 않는다. */
+    /** 주문 시각 desc, 식별자 desc. null 인 조건으로는 거르지 않음 */
     Page<Order> findPage(Long userId, OrderStatus status, Pageable pageable);
 }

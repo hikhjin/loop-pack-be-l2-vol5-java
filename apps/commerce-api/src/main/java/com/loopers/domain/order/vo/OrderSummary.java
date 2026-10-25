@@ -6,7 +6,7 @@ import com.loopers.domain.order.enums.PaymentMethod;
 
 import java.time.ZonedDateTime;
 
-/** 주문 목록의 한 줄. 품목 전체 대신 개수와 대표 상품명(첫 품목)만 담는다 (설계 6.4). */
+/** 품목 전체 대신 개수와 첫 품목의 상품명만 담음 (설계 6.4) */
 public record OrderSummary(
     Long id,
     Long userId,

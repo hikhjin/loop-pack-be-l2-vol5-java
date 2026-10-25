@@ -5,10 +5,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
-/**
- * 주문 품목. 상품은 식별자로만 보관하고, 상품명 · 단가는 DRAFT 생성 시점의 스냅샷이다 (설계 2.3).
- * 관리자가 상품을 바꾸거나 삭제해도 주문 품목은 그대로 남는다.
- */
+/** 상품명 · 단가는 DRAFT 생성 시점의 스냅샷이라 상품이 바뀌거나 삭제돼도 그대로 남음 (설계 2.3) */
 @Entity
 @Table(name = "order_items")
 public class OrderItem extends BaseEntity {

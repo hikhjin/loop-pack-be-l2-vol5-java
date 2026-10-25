@@ -8,10 +8,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Set;
 
-/**
- * 고객 주문 상세. 품목마다 판매 여부(상품이 지금 살아 있는가)를 담음 (설계 6.4, D-42).
- * 생성 · 확정 응답과 관리자 상세에는 판매 여부가 없으므로 OrderInfo 와 따로 둠.
- */
+/** 품목별 판매 여부는 고객 상세에만 있어 OrderInfo 와 따로 둠 (설계 6.4, D-42) */
 public record OrderDetailInfo(
     Long id,
     String status,
@@ -29,8 +26,7 @@ public record OrderDetailInfo(
         }
     }
 
-    /** 품목의 상품 식별자가 activeProductIds 에 없으면 삭제된 상품이라 판매종료로 봄 */
-    /** payment 는 결제 시도가 없으면 null */
+    /** activeProductIds 에 없는 상품은 판매종료로 봄. payment 는 결제 시도가 없으면 null */
     public static OrderDetailInfo of(Order order, Set<Long> activeProductIds, Payment payment) {
         return new OrderDetailInfo(
             order.getId(),

@@ -34,10 +34,7 @@ public class LikeRepositoryImpl implements LikeRepository {
     private final LikeJpaRepository likeJpaRepository;
     private final JPAQueryFactory queryFactory;
 
-    /**
-     * 같은 관계의 유니크 키 위반만 DuplicateKeyException 으로 구분해 알린다. 다시 실행할 대상을 이것으로만 좁힌다.
-     * 다른 무결성 위반은 그대로 둔다 (4주차 설계 3.3)
-     */
+    /** 다시 실행할 대상을 좁히려 같은 관계의 유니크 키 위반만 DuplicateKeyException 으로 바꿈 (4주차 설계 3.3) */
     @Override
     public Like save(Like like) {
         try {
@@ -50,7 +47,7 @@ public class LikeRepositoryImpl implements LikeRepository {
         }
     }
 
-    // MySQL 은 제약 이름을 "테이블.제약" 으로 알린다
+    // MySQL 은 제약 이름을 "테이블.제약" 으로 알림
     private static boolean isRelationDuplicate(DataIntegrityViolationException e) {
         return e.getCause() instanceof ConstraintViolationException violation
             && violation.getConstraintName() != null
@@ -67,7 +64,7 @@ public class LikeRepositoryImpl implements LikeRepository {
         return likeJpaRepository.deleteRelation(userId, productId);
     }
 
-    // 삭제된 상품은 내 목록에서 제외한다. 관계는 남아 있어 취소할 수 있다 (설계 6.3)
+    // 삭제된 상품은 목록에서만 빼고 관계는 남겨 취소할 수 있게 함 (설계 6.3)
     @Override
     public Page<LikedProduct> findLikedProducts(Long userId, Pageable pageable) {
         List<LikedProduct> content = queryFactory

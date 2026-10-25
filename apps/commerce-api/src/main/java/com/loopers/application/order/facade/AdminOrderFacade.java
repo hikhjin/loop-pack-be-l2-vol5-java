@@ -26,7 +26,7 @@ public class AdminOrderFacade {
     private final UserService userService;
     private final PaymentService paymentService;
 
-    /** 관리자 필터는 관리할 대상을 지정하므로, 없는 사용자면 USER_NOT_FOUND 로 알린다 (설계 D-24). */
+    /** 관리자 필터는 대상을 지정하므로 없는 사용자를 알림 (D-24) */
     @Transactional(readOnly = true)
     public Page<OrderSummaryInfo> getOrders(Long userId, OrderStatus status, Pageable pageable) {
         if (userId != null && !userService.exists(userId)) {

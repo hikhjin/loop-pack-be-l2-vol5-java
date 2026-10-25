@@ -33,7 +33,7 @@ public class OrderFacade {
 
     public record OrderRequestLine(Long productId, int quantity) {}
 
-    /** 살아 있는 상품을 요청 순서대로 조회해 스냅샷을 찍고 DRAFT 로 저장함 (ORD-01, 설계 5.2). 차감하지 않음 */
+    /** 재고는 차감하지 않고 스냅샷만 찍음 (ORD-01, 설계 5.2) */
     @Transactional
     public OrderInfo createOrder(Long userId, List<OrderRequestLine> requestLines) {
         Map<Long, Product> products = new LinkedHashMap<>();
@@ -57,7 +57,7 @@ public class OrderFacade {
         return summaries.map(summary -> OrderSummaryInfo.of(summary, payments));
     }
 
-    /** 판매 여부는 업무 규칙이 아니라 응답 구성 값이라 여기서 조합함. 품목의 상품들을 한 번에 물음 (설계 6.4, D-42) */
+    /** 판매 여부는 업무 규칙이 아니라 응답 구성 값이라 여기서 조합함 (설계 6.4, D-42) */
     @Transactional(readOnly = true)
     public OrderDetailInfo getMyOrder(Long userId, Long orderId) {
         Order order = orderService.getMyOrder(userId, orderId);

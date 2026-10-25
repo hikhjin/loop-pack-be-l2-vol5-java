@@ -25,18 +25,13 @@ import java.util.List;
 import java.util.Map;
 import com.loopers.domain.order.enums.PaymentMethod;
 
-/**
- * 주문. 품목의 합산 · 수량 · 합계 · 상태 규칙을 지킨다 (설계 2.3).
- * 품목은 Order 를 통해서만 만들어지며, 요청 순서로 저장하고 식별자 오름차순으로 읽는다 (D-33).
- * MySQL 예약어와 겹치지 않도록 테이블 이름은 orders 로 둔다.
- */
+/** 품목은 Order 를 통해서만 만들고, 요청 순서로 저장해 식별자 순으로 읽음 (D-33). 테이블 이름은 예약어를 피해 orders */
 @Entity
 @Table(name = "orders")
 public class Order extends BaseEntity {
 
     private static final int MIN_QUANTITY = 1;
     private static final int MAX_QUANTITY = 999;
-    /** 주문서는 생성 후 이 기간 동안만 확정할 수 있음 (설계 2.3, D-41) */
     private static final Duration VALID_DURATION = Duration.ofMinutes(30);
 
     @Column(name = "user_id", nullable = false)
@@ -49,15 +44,15 @@ public class Order extends BaseEntity {
     @Column(name = "total_amount", nullable = false)
     private long totalAmount;
 
-    /** 이 시각부터 확정할 수 없음. 만료 상태는 따로 두지 않고 확정 때 비교함 (설계 2.3, D-41) */
+    /** 만료 상태를 따로 두지 않고 확정 때 비교함 (D-41) */
     @Column(name = "expires_at", nullable = false)
     private ZonedDateTime expiresAt;
 
-    /** 실제로 차감한 금액. 확정 전에는 없다. 할인이 붙으면 합계와 갈라진다 (설계 5.5). */
+    /** 할인이 붙으면 합계와 갈라짐 (설계 5.5) */
     @Column(name = "payment_amount")
     private Long paymentAmount;
 
-    /** updatedAt 은 이후 변경으로 덮이므로 결제 시각을 따로 둔다 (설계 5.5). PG 결제는 내부 반영 시각임 */
+    /** updatedAt 은 이후 변경으로 덮이므로 따로 둠 (설계 5.5) */
     @Column(name = "paid_at")
     private ZonedDateTime paidAt;
 
@@ -66,7 +61,7 @@ public class Order extends BaseEntity {
     @Column(name = "payment_method")
     private PaymentMethod paymentMethod;
 
-    /** 같은 주문의 확정이 겹치면 나중 commit 이 충돌하고, 재시도에서 CONFIRMED 를 읽어 기존 상태 오류로 끝남 (3주차 설계 4.1) */
+    /** 같은 주문의 변경이 겹치면 나중 commit 이 충돌함 (3주차 설계 4.1) */
     @Version
     private Long version;
 
@@ -85,11 +80,7 @@ public class Order extends BaseEntity {
         this.expiresAt = createdAt.plus(VALID_DURATION);
     }
 
-    /**
-     * DRAFT 주문을 만든다. 재고 · 포인트는 차감하지 않는다.
-     * 같은 상품의 품목은 처음 등장한 위치에 합산하고(ORD-03), 수량은 합산 후 기준으로 확인한다(ORD-02).
-     * 만료 시각은 생성 시각 + 30분으로 정함(ORD-08).
-     */
+    /** 같은 상품은 처음 등장한 위치에 합산하고 수량은 합산 뒤 확인함 (ORD-02, ORD-03, ORD-08) */
     public static Order draft(Long userId, List<OrderLine> lines, ZonedDateTime createdAt) {
         if (lines == null || lines.isEmpty()) {
             throw new CoreException(OrderErrorCode.EMPTY_ORDER_ITEMS);
@@ -144,10 +135,7 @@ public class Order extends BaseEntity {
         return status == OrderStatus.DRAFT;
     }
 
-    /**
-     * DRAFT 가 아니면(ORD-07), 만료되었으면(ORD-08) 거절함. 상품 · 포인트를 다루기 전에 부를 수 있도록 따로 둠 (설계 5.3).
-     * 현재 시각이 만료 시각 이상이면 만료이며, 정확히 30분이 된 순간부터 확정할 수 없음
-     */
+    /** 상품을 다루기 전에 부를 수 있도록 따로 둠. 정확히 30분이 된 순간부터 만료 (ORD-07, ORD-08, 설계 5.3) */
     public void validateConfirmable(ZonedDateTime now) {
         if (!isDraft()) {
             throw new CoreException(OrderErrorCode.ORDER_ALREADY_CONFIRMED);

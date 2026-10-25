@@ -22,10 +22,9 @@ import java.util.List;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    /** 만료 · 결제 시각의 기준. 시각을 정하는 곳을 이 서비스 한 곳에 둠 (설계 2.3) */
+    /** 시각을 정하는 곳을 한 곳에 둠 (설계 2.3) */
     private final Clock clock;
 
-    /** 스냅샷을 담은 품목으로 DRAFT 를 저장한다. 만료 시각은 지금 + 30분 (ORD-08). 차감하지 않는다. */
     @Transactional
     public Order create(Long userId, List<OrderLine> lines) {
         return orderRepository.save(Order.draft(userId, lines, ZonedDateTime.now(clock)));
@@ -70,7 +69,7 @@ public class OrderService {
         order.failPayment();
     }
 
-    /** 요청자 본인의 주문만 조회한다. 타인의 주문은 없는 주문과 같다 (설계 6.1). */
+    /** 타인의 주문은 없는 주문과 같음 (설계 6.1) */
     @Transactional(readOnly = true)
     public Order getMyOrder(Long userId, Long orderId) {
         return orderRepository.findByIdAndUserId(orderId, userId)
@@ -83,7 +82,7 @@ public class OrderService {
             .orElseThrow(() -> new CoreException(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
-    /** 품목을 읽는 요약은 트랜잭션 안에서 만든다 (open-in-view 가 꺼져 있다). */
+    /** open-in-view 가 꺼져 있어 품목을 읽는 요약은 트랜잭션 안에서 만듦 */
     @Transactional(readOnly = true)
     public Page<OrderSummary> getOrderSummaries(Long userId, OrderStatus status, Pageable pageable) {
         return orderRepository.findPage(userId, status, pageable).map(OrderSummary::from);

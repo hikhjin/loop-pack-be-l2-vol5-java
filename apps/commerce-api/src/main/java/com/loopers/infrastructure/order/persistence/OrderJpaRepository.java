@@ -14,7 +14,7 @@ import java.util.Optional;
 
 public interface OrderJpaRepository extends JpaRepository<Order, Long> {
 
-    /** 상세와 확정은 품목이 필요하므로 함께 읽는다. */
+    /** 상세와 확정은 품목이 필요해 함께 읽음 */
     @Query("select o from Order o left join fetch o.items where o.id = :id and o.userId = :userId")
     Optional<Order> findWithItemsByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
 
