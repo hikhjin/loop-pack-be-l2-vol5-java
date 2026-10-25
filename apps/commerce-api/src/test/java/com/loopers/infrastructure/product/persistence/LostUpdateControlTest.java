@@ -24,9 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 /**
- * 갱신 유실을 재현하는 음성 대조군. 제품 구현이 아니며, 잠금 없이 읽고 계산한 값을 쓰면 왜 틀리는지 보여 줌 (3주차 설계 6.2).
- * 읽은 뒤의 장벽은 이 대조군 안에만 두고, 실제 서비스의 잠금 구간에는 넣지 않음.
- * 이 테스트의 통과는 실제 주문 정합성의 증거가 아님
+ * 잠금 없이 읽고 계산한 값을 쓰면 갱신이 유실됨을 보이는 음성 대조군 (3주차 설계 6.2).
+ * 장벽은 이 대조군에만 두므로 통과가 실제 주문 정합성의 증거는 아님
  */
 @SpringBootTest
 class LostUpdateControlTest {

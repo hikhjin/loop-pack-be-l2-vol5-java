@@ -24,10 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/**
- * 상품 상세 캐시를 실제 Redis 로 확인함 (4주차 docs/week4/detail-cache-design.md).
- * 원본은 호출 수를 세는 loader 로 대신한다. 조회 경로 · 쓰기 경로와의 연결은 Facade 테스트에서 확인함
- */
+/** 원본은 호출 수를 세는 loader 로 대신함. 조회 · 쓰기 경로와의 연결은 Facade 테스트가 확인함 */
 @SpringBootTest
 class RedisProductDetailCacheTest {
 
@@ -63,7 +60,7 @@ class RedisProductDetailCacheTest {
         redisCleanUp.truncateAll();
     }
 
-    /** 원본 대역. 부를 때마다 수를 세고 같은 결과를 돌려준다 */
+    /** 부를 때마다 수를 세고 같은 결과를 돌려줌 */
     private static final class CountingLoader implements Supplier<Optional<ProductView>> {
         private final AtomicInteger calls = new AtomicInteger();
         private final Optional<ProductView> view;

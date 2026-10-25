@@ -42,7 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 인기 키의 캐시가 사라진 직후 동시 요청이 몰릴 때(스템피드) 원본 DB 조회가 몇 번 일어나는지 잰다 (4주차 docs/week4/detail-cache-design.md 8).
- * 제품 코드가 아니며 결과는 대책을 정하는 근거로 씀. 지금 캐시에는 동시 miss 대책이 없다.
+ * 제품 코드가 아니며 결과는 동시 miss 대책 전후를 비교하는 근거로 씀 (stampede-design).
  *
  * <ul>
  *   <li>한 시행: 그 키를 무효화(버전 올림)한 뒤, N 개 스레드가 출발 신호를 함께 받아 같은 요청을 한 번씩 보낸다. 가장 몰리는 경우다</li>

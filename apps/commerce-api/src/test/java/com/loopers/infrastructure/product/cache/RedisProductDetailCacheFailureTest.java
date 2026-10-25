@@ -33,12 +33,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 /**
- * 상세 캐시의 장애 · 경쟁 장면을 실제 DB · Redis 로 확인함 (4주차 docs/week4/detail-cache-design.md 3.1, 3.5, 4, 7).
- * 목록 캐시 장애 테스트(RedisProductListCacheFailureTest)와 같은 방식이다.
- * <ul>
- *   <li>다른 테스트와 공유하지 않는 Redis 컨테이너를 이 테스트만 쓰고, 일시정지(pause)로 응답 없는 Redis 를 만든다</li>
- *   <li>실패한 무효화의 재처리 간격을 길게 두고 직접 호출해, 재처리 전후를 결정적으로 나눈다</li>
- * </ul>
+ * 전용 Redis 컨테이너를 일시정지(pause)해 응답 없는 Redis 를 만들고,
+ * 재처리 간격을 길게 두고 직접 호출해 재처리 전후를 결정적으로 나눔 (4주차 detail-cache-design 7)
  */
 @SpringBootTest(properties = {
     "spring.jpa.properties.hibernate.generate_statistics=true",
@@ -198,7 +194,7 @@ class RedisProductDetailCacheFailureTest {
         CountDownLatch releaseOldRead = new CountDownLatch(1);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            // 이전 조회: 버전을 읽고 DB 에서 옛 가격을 읽은 뒤, 저장하기 전에 멈춘다
+            // 이전 조회: 버전을 읽고 DB 에서 옛 가격을 읽은 뒤, 저장하기 전에 멈춤
             Future<Optional<ProductView>> oldRead = executor.submit(() -> cache.get(productId, () -> {
                 Optional<ProductView> view = productService.findActiveProductView(productId);
                 oldReadDone.countDown();
@@ -207,7 +203,7 @@ class RedisProductDetailCacheFailureTest {
             }));
             assertThat(oldReadDone.await(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
 
-            // act: 변경 commit 과 버전 증가가 끝난 뒤에 이전 조회가 옛 값을 저장한다
+            // act: 변경 commit 과 버전 증가가 끝난 뒤에 이전 조회가 옛 값을 저장함
             adminProductFacade.updateProduct(productId, "상품", 5_000L);
             releaseOldRead.countDown();
             Optional<ProductView> stale = oldRead.get(WAIT_SECONDS, TimeUnit.SECONDS);

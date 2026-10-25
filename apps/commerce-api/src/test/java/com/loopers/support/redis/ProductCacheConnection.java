@@ -7,10 +7,7 @@ import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-/**
- * 상품 캐시 전용 연결(명령 한도 100ms)을 테스트 전에 맺어 둠.
- * 첫 연결이 100ms 를 넘기는 환경에서 첫 읽기가 원본으로 우회해 기대한 원본 호출 수가 어긋나지 않게 함
- */
+/** 첫 연결이 명령 한도(100ms)를 넘겨 원본으로 우회하면 원본 호출 수가 어긋나므로 테스트 전에 연결을 맺어 둠 */
 @Component
 public class ProductCacheConnection {
 

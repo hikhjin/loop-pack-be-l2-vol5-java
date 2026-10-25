@@ -34,10 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/**
- * 원본 조회 모으기를 실제 Redis 로 확인함 (4주차 docs/week4/stampede-design.md 6).
- * 서로 다른 CacheLoadCoordinator 객체 둘이 같은 Redis 를 쓰게 해 서버 두 대를 흉내 낸다
- */
+/** 서로 다른 CacheLoadCoordinator 둘이 같은 Redis 를 써서 서버 두 대를 흉내 냄 (4주차 stampede-design 6) */
 @SpringBootTest
 class CacheLoadCoordinatorTest {
 
@@ -84,7 +81,7 @@ class CacheLoadCoordinatorTest {
         return value -> redis.opsForValue().set(key, value);
     }
 
-    /** 원본 대역. 부를 때마다 수를 세고, 정한 시간만큼 걸린다 */
+    /** 부를 때마다 수를 세고, 정한 시간만큼 걸림 */
     private static Supplier<String> slowLoad(AtomicInteger calls, long millis) {
         return () -> {
             calls.incrementAndGet();

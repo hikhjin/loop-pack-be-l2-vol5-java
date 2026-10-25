@@ -15,7 +15,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-/** 버전 읽기 스크립트를 실제 Redis 로 확인함 (4주차 docs/week4/detail-cache-design.md 3.1, 4) */
+/** 4주차 detail-cache-design 3.1 */
 @SpringBootTest
 class VersionedCacheScriptTest {
 

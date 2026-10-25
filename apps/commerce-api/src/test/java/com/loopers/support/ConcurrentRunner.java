@@ -12,10 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 실제 서비스의 경쟁 테스트를 위한 실행기. 작업의 시작만 맞추며, 어느 순서로 겹칠지는 정하지 않음 (3주차 설계 6.1, 6.4).
- * 요청별 결과를 성공 · 업무 거절(오류 코드) · 재시도 한도 초과 · 기술 오류로 나눠 돌려주고, 예외를 버리지 않음
- */
+/** 시작만 맞추고 겹치는 순서는 정하지 않음. 예외를 버리지 않도록 결과를 성공 · 업무 거절 · 한도 초과 · 기술 오류로 나눔 (3주차 설계 6.1) */
 public final class ConcurrentRunner {
 
     public static final String SUCCESS = "SUCCESS";
@@ -42,7 +39,7 @@ public final class ConcurrentRunner {
         };
     }
 
-    /** 모든 작업의 시작만 맞춰 실행하고, 모두 끝날 때까지 기다린 뒤 결과를 작업 순서대로 돌려줌 */
+    /** 결과는 작업 순서대로 */
     public static List<String> run(List<Callable<String>> tasks) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(tasks.size());
         CountDownLatch ready = new CountDownLatch(tasks.size());

@@ -45,12 +45,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 /**
- * 목록 캐시의 장애 · 경쟁 장면을 실제 DB · Redis 로 확인함 (4주차 docs/week4/cache-design.md 3.4, 4, 7).
- * <ul>
- *   <li>다른 테스트와 공유하지 않는 Redis 컨테이너를 이 테스트만 쓰고, 일시정지(pause)로 응답 없는 Redis 를 만든다.
- *       포트가 그대로라 재개(unpause)하면 같은 연결로 돌아온다</li>
- *   <li>실패한 무효화의 재처리 간격을 길게 두고 직접 호출해, 재처리 전후를 결정적으로 나눈다</li>
- * </ul>
+ * 전용 Redis 컨테이너를 일시정지(pause)해 응답 없는 Redis 를 만들고(재개하면 같은 연결로 돌아옴),
+ * 재처리 간격을 길게 두고 직접 호출해 재처리 전후를 결정적으로 나눔 (4주차 cache-design 7)
  */
 @SpringBootTest(properties = {
     "spring.jpa.properties.hibernate.generate_statistics=true",
@@ -58,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 })
 class RedisProductListCacheFailureTest {
 
-    /** 캐시를 거치는 첫 페이지 · 기본 크기 (cache-design.md 2.1) */
+    /** 캐시를 거치는 첫 페이지 · 기본 크기 (cache-design 2.1) */
     private static final Pageable FIRST_PAGE = PageRequest.of(0, 20);
     private static final long WAIT_SECONDS = 10;
 
@@ -262,7 +258,7 @@ class RedisProductListCacheFailureTest {
         CountDownLatch releaseOldRead = new CountDownLatch(1);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            // 이전 조회: 버전을 읽고 DB 에서 옛 가격을 읽은 뒤, 저장하기 전에 멈춘다
+            // 이전 조회: 버전을 읽고 DB 에서 옛 가격을 읽은 뒤, 저장하기 전에 멈춤
             Future<Page<ProductView>> oldRead = executor.submit(() -> cache.getFirstPage(brandId, ProductSort.PRICE_ASC, () -> {
                 Page<ProductView> page = productService.getActiveProductViews(brandId, ProductSort.PRICE_ASC, FIRST_PAGE);
                 oldReadDone.countDown();
@@ -271,7 +267,7 @@ class RedisProductListCacheFailureTest {
             }));
             assertThat(oldReadDone.await(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
 
-            // act: 변경 commit 과 버전 증가가 끝난 뒤에 이전 조회가 옛 값을 저장한다
+            // act: 변경 commit 과 버전 증가가 끝난 뒤에 이전 조회가 옛 값을 저장함
             adminProductFacade.updateProduct(productId, "상품", 5_000L);
             releaseOldRead.countDown();
             Page<ProductView> stale = oldRead.get(WAIT_SECONDS, TimeUnit.SECONDS);
