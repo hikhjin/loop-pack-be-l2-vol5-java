@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** DB 없이 브랜드 서비스의 협력을 확인하기 위한 저장 구현. */
 public class FakeBrandRepository implements BrandRepository {
 
     private final Map<Long, Brand> brands = new LinkedHashMap<>();
@@ -31,7 +30,7 @@ public class FakeBrandRepository implements BrandRepository {
         return Optional.ofNullable(brands.get(brandId)).filter(brand -> !brand.isDeleted());
     }
 
-    // fake 에는 잠금이 없다. 잠금 동작은 실제 DB 의 동시성 테스트에서 확인한다
+    // 잠금은 실제 DB 의 동시성 테스트가 확인함
     @Override
     public Optional<Brand> findActiveForUpdate(Long brandId) {
         return findActive(brandId);

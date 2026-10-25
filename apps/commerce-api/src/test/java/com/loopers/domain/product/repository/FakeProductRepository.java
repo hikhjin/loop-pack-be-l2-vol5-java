@@ -21,7 +21,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** DB 없이 상품 서비스의 협력을 확인하기 위한 저장 구현. */
 public class FakeProductRepository implements ProductRepository {
 
     private final Map<Long, Product> products = new LinkedHashMap<>();
@@ -41,7 +40,7 @@ public class FakeProductRepository implements ProductRepository {
         return Optional.ofNullable(products.get(productId)).filter(product -> !product.isDeleted());
     }
 
-    // fake 에는 잠금이 없다. 잠금 동작은 실제 DB 의 동시성 테스트에서 확인한다
+    // 잠금은 실제 DB 의 동시성 테스트가 확인함
     @Override
     public Optional<Product> findActiveForUpdate(Long productId) {
         return findActive(productId);
@@ -89,7 +88,7 @@ public class FakeProductRepository implements ProductRepository {
         return new PageImpl<>(active, pageable, active.size());
     }
 
-    // 좋아요 집계 · 정렬 조회는 쿼리의 동작이라 저장소 통합 테스트(실제 DB)에서 확인한다
+    // 정렬 조회는 쿼리의 동작이라 저장소 통합 테스트가 확인함
     @Override
     public Optional<ProductView> findActiveView(Long productId) {
         throw new UnsupportedOperationException("ProductRepositoryIntegrationTest 에서 확인한다");
@@ -109,7 +108,7 @@ public class FakeProductRepository implements ProductRepository {
         return products.size();
     }
 
-    // Product 는 Brand 를 내보내지 않으므로(D-36) 저장 구현이 직접 꺼내 조회 결과 타입을 만든다
+    // Product 는 Brand 를 내보내지 않아 직접 꺼냄 (D-36)
     private static ProductWithBrand withBrand(Product product) {
         Brand brand = (Brand) ReflectionTestUtils.getField(product, "brand");
         return new ProductWithBrand(

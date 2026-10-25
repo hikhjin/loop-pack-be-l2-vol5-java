@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-/** DB · Redis 없이 무효화 호출을 확인하기 위한 캐시. 항상 원본을 읽고, 무효화한 상품을 순서대로 기록한다 */
+/** 항상 원본을 읽고, 무효화한 상품을 순서대로 기록함 */
 public class FakeProductDetailCache implements ProductDetailCache {
 
     private final List<Long> invalidatedProductIds = new ArrayList<>();

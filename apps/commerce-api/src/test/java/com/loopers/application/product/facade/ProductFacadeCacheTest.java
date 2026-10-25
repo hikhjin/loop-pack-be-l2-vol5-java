@@ -29,10 +29,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-/**
- * 상품 목록 조회 경로에 붙은 캐시를 실제 DB · Redis 로 확인함 (4주차 docs/week4/cache-design.md 2.1, 4.1).
- * SQL 수는 Hibernate 가 준비한 문장 수로 센다
- */
+/** SQL 수는 Hibernate 가 준비한 문장 수로 셈 (4주차 cache-design 2.1, 4.1) */
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class ProductFacadeCacheTest {
 
@@ -67,7 +64,7 @@ class ProductFacadeCacheTest {
 
     private Long brandId;
 
-    /** 브랜드 하나에 첫 페이지를 넘는 25개, 다른 브랜드에 3개. 가격 · 재고 · 좋아요가 섞이게 둔다 */
+    /** 브랜드 하나에 첫 페이지를 넘는 25개, 다른 브랜드에 3개 */
     @BeforeEach
     void setUp() {
         productCacheConnection.connect();

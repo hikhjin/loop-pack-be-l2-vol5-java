@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-/** DB · Redis 없이 무효화 호출을 확인하기 위한 캐시. 항상 원본을 읽고, 무효화한 브랜드를 순서대로 기록한다 */
+/** 항상 원본을 읽고, 무효화한 브랜드를 순서대로 기록함 */
 public class FakeProductListCache implements ProductListCache {
 
     private final List<Long> invalidatedBrandIds = new ArrayList<>();

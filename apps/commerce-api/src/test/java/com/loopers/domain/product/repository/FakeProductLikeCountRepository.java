@@ -8,7 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
-/** DB 없이 좋아요 수의 협력을 확인하기 위한 저장 구현. 원자적 갱신 · 잠금은 실제 DB 의 동시성 테스트에서 확인한다 */
+/** 원자적 갱신 · 잠금은 실제 DB 의 동시성 테스트가 확인함 */
 public class FakeProductLikeCountRepository implements ProductLikeCountRepository {
 
     private final Map<Long, ProductLikeCount> likeCounts = new LinkedHashMap<>();

@@ -32,10 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 
-/**
- * 브랜드 일괄 삭제의 트랜잭션 경계를 실제 DB 로 확인함 (BRD-02, 3주차 설계 2.2, 6.3).
- * 테스트 메서드를 트랜잭션으로 감싸지 않고, 서비스 트랜잭션이 끝난 뒤 새 트랜잭션에서 다시 읽음
- */
+/** 테스트를 트랜잭션으로 감싸지 않고 서비스 트랜잭션이 끝난 뒤 다시 읽음 (BRD-02, 3주차 설계 2.2) */
 @SpringBootTest
 class BrandDeleteTransactionTest {
 

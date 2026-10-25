@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/** DB 없이 좋아요 서비스의 협력을 확인하기 위한 저장 구현. */
 public class FakeLikeRepository implements LikeRepository {
 
     private final List<Like> likes = new ArrayList<>();
@@ -36,7 +35,7 @@ public class FakeLikeRepository implements LikeRepository {
         return find(userId, productId).map(like -> likes.remove(like) ? 1 : 0).orElse(0);
     }
 
-    // 상품 · 브랜드와 조인하는 조회는 저장소 통합 테스트(실제 DB)에서 확인한다
+    // 조인 조회는 저장소 통합 테스트가 확인함
     @Override
     public Page<LikedProduct> findLikedProducts(Long userId, Pageable pageable) {
         throw new UnsupportedOperationException("LikeRepositoryIntegrationTest 에서 확인한다");

@@ -21,10 +21,7 @@ import static com.loopers.support.ConcurrentRunner.outcomeOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-/**
- * 브랜드 행을 함께 쓰는 경로의 동시 실행을 실제 DB 로 확인함 (BRD-02, 3주차 설계 4.2, 6.4).
- * 작업의 시작만 맞추며, 어느 순서로 겹치더라도 불변식이 지켜지는지 확인함
- */
+/** 시작만 맞추고, 어느 순서로 겹쳐도 불변식이 지켜지는지 봄 (BRD-02, 3주차 설계 4.2) */
 @SpringBootTest
 class BrandConcurrencyTest {
 

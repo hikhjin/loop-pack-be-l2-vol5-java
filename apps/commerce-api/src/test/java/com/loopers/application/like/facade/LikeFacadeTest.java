@@ -21,10 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/**
- * 좋아요 등록의 LIK-01 은 상품과 좋아요 두 도메인의 협력이라 Facade 에서 확인함 (설계 4.4).
- * 좋아요 수는 관계가 실제로 생기거나 지워졌을 때만 바뀜 (4주차 설계 3.2). 동시 실행은 LikeConcurrencyTest 에서 확인함
- */
+/** LIK-01 은 두 도메인의 협력이라 Facade 에서 확인함. 동시 실행은 LikeConcurrencyTest 가 확인함 (설계 4.4) */
 class LikeFacadeTest {
 
     private static final Long USER_ID = 1L;
@@ -43,7 +40,7 @@ class LikeFacadeTest {
         brand = new FakeBrandRepository().save(new Brand("브랜드", null));
     }
 
-    // 모든 상품이 좋아요 수 행을 갖도록 생성 입구로 만든다 (4주차 설계 2.2)
+    // 모든 상품이 좋아요 수 행을 갖도록 생성 입구로 만듦 (4주차 설계 2.2)
     private Product createProduct() {
         return productService.create(brand, "상품", 1_000L);
     }

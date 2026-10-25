@@ -6,7 +6,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** DB 없이 요청자 확인을 검증하기 위한 저장 구현. */
 public class FakeUserRepository implements UserRepository {
 
     private final Map<Long, User> users = new LinkedHashMap<>();

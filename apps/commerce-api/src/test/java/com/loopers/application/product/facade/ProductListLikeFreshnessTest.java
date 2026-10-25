@@ -23,10 +23,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-/**
- * 좋아요 등록 · 취소는 목록 캐시를 무효화하지 않고, 정한 허용 신선도(TTL) 안에 반영된다 (4주차 docs/week4/cache-design.md 3.3, 5).
- * 만료를 테스트 안에서 기다릴 수 있도록 TTL 을 1초로 둔다. 운영 값은 60초다
- */
+/** 만료를 테스트 안에서 기다릴 수 있도록 TTL 을 1초로 둠 (4주차 cache-design 3.3, 5) */
 @SpringBootTest(properties = "product-list-cache.ttl-seconds=1")
 class ProductListLikeFreshnessTest {
 

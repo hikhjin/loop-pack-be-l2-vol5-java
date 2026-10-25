@@ -31,10 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/**
- * 상품 상세 캐시의 조회 · 무효화를 실제 DB · Redis 로 확인함 (4주차 docs/week4/detail-cache-design.md 3.2, 3.3, 5).
- * 무효화 여부는 다음 조회가 SQL 을 실행하는가(miss)로 판단한다
- */
+/** 무효화 여부는 다음 조회가 SQL 을 실행하는가(miss)로 판단함 (4주차 detail-cache-design 3.2, 3.3) */
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class ProductDetailCacheInvalidationTest {
 
@@ -252,7 +249,7 @@ class ProductDetailCacheInvalidationTest {
         @DisplayName("상품 생성 — 먼저 조회해 \"없음\"이 저장된 ID 로 생기면, 다음 조회는 200 이다 (3.3)")
         @Test
         void onCreateProduct_afterNotFoundWasCached() {
-            // arrange: 다음에 생길 ID 를 먼저 조회해 "없음"을 저장한다
+            // arrange: 다음에 생길 ID 를 먼저 조회해 "없음"을 저장함
             Long nextId = otherProductId + 1;
             assertThrows(CoreException.class, () -> productFacade.getProduct(nextId));
 

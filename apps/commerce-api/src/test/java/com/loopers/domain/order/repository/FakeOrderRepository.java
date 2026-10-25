@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-/** DB 없이 주문 서비스의 협력을 확인하기 위한 저장 구현. */
 public class FakeOrderRepository implements OrderRepository {
 
     private final Map<Long, Order> orders = new LinkedHashMap<>();
@@ -39,7 +38,7 @@ public class FakeOrderRepository implements OrderRepository {
         return Optional.ofNullable(orders.get(orderId));
     }
 
-    // fake 에는 잠금이 없다. 잠금 동작은 실제 DB 의 동시성 테스트에서 확인한다
+    // 잠금은 실제 DB 의 동시성 테스트가 확인함
     @Override
     public Optional<Order> findByIdAndUserIdForUpdate(Long orderId, Long userId) {
         return findByIdAndUserId(orderId, userId);

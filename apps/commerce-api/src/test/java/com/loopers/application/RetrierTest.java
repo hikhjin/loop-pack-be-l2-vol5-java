@@ -38,10 +38,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * ~Retrier 의 재시도 범위와 한도를 확인함. 재시도는 AOP 라 Spring 컨텍스트에서 Facade 를 대역으로 바꿔 끼움 (3주차 설계 4.4, 6.5).
- * 실제 버전 충돌이 나는지는 경쟁 테스트(실제 DB)가 확인함
- */
+/** 재시도가 AOP 라 Spring 컨텍스트에서 Facade 를 대역으로 바꿔 끼움. 실제 충돌은 경쟁 테스트가 확인함 (3주차 설계 4.4) */
 @SpringBootTest
 @AutoConfigureMockMvc
 class RetrierTest {

@@ -22,11 +22,7 @@ import static com.loopers.support.ConcurrentRunner.outcomeOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-/**
- * 좋아요 등록 · 취소의 동시 실행을 실제 DB 로 확인함 (4주차 설계 3.2, 3.3).
- * 작업의 시작만 맞추며, 어느 순서로 겹치더라도 "좋아요 수 = 관계 수" 가 지켜지는지 확인함.
- * 등록은 인터페이스와 같은 입구(LikeRetrier)로 부른다
- */
+/** 시작만 맞추고, 어느 순서로 겹쳐도 "좋아요 수 = 관계 수" 인지 봄. 등록은 실제 입구(LikeRetrier)로 부름 (4주차 설계 3.2, 3.3) */
 @SpringBootTest
 class LikeConcurrencyTest {
 

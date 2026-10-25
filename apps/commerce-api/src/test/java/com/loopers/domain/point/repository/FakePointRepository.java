@@ -7,7 +7,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
-/** DB 없이 포인트 서비스를 확인하기 위한 저장 구현. */
 public class FakePointRepository implements PointRepository {
 
     private final Map<Long, Point> pointsByUserId = new LinkedHashMap<>();

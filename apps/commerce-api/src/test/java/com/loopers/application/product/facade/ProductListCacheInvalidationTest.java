@@ -36,10 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/**
- * 목록 캐시에 영향을 주는 쓰기 경로가 무효화를 부르는지 실제 DB · Redis 로 확인함 (4주차 docs/week4/cache-design.md 3.3, 3.4).
- * 무효화 여부는 다음 조회가 SQL 을 실행하는가(miss)로 판단하고, 결과는 DB 만 읽은 결과와 비교한다
- */
+/** 무효화 여부는 다음 조회가 SQL 을 실행하는가(miss)로 판단함 (4주차 cache-design 3.3, 3.4) */
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class ProductListCacheInvalidationTest {
 
