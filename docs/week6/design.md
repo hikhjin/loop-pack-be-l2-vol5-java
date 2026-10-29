@@ -260,7 +260,8 @@ consume(event):
   - **pause 동안에도 poll 을 계속해 group membership 이 유지된다.** rebalance 가 일어나지 않고, partition 이 다른 인스턴스로 넘어가지 않는다. 긴 대기도 `max.poll.interval.ms` 제약을 받지 않는다.
   - 상한 5분은 DB failover · 연결 끊김이 보통 수십 초에서 몇 분이고, 구매 활동은 몇 분 늦어도 업무 영향이 작다는 판단이다. 참고로 로컬 빈 MySQL 재시작은 2~2.7초였고, 운영 managed DB failover 문헌값은 30초~2분이다(실험 문서).
   - **상한은 벽시계 시간이 아니라 backoff 간격의 합이다**(Spring `ExponentialBackOff`). 연결 거부 장애에서 간격 합 60s 일 때 실제 중단은 79초였다.
-  - **응답 없는 DB 에서는 상한이 동작하지 않는다.** JDBC socket timeout 이 없어 DB 호출이 예외 없이 기다리고, 약 5분 뒤 `max.poll.interval.ms` 로 group 에서 빠진다(실험 문서). 8장 한계 참고.
+  - **응답 없는 DB 에서는 드라이버 timeout 없이는 상한이 동작하지 않았다.** DB 호출이 예외 없이 기다려 약 5분 뒤 `max.poll.interval.ms` 로 group 에서 빠졌다. streamer 에 `socketTimeout` 10s · `connectTimeout` 3s 를 두어(D-98) 같은 장애에서 시도 8번 뒤 120초(간격 합 60초)에 중단됨을 확인했다.
+  - 운영 상한(간격 합 5분)에서 실제 중단은 연결 거부 약 6분, 응답 없음 약 8~10분으로 추정한다. 문헌값의 failover(30초~2분)는 그 전에 회복하므로 상한은 5분으로 둔다.
 - **상한을 넘기면 중단하는 이유:** 일시적 오류로 잘못 분류된 버그나 사람이 고쳐야 하는 환경 문제(테이블 없음, 권한)는 기다려도 성공하지 않는다. 무제한이면 컨테이너는 살아 있고 lag 만 쌓이는 조용한 정지가 된다. 중단해도 offset 은 머물러 있어 잃는 것이 없다.
 - **과제 문장과의 관계:** 과제의 error handler 확인 항목은 "실패 record 를 skip 하지 않고 중단 · 원인 표시 · 복구 후 재시작 가능"이다. 일시적 오류는 skip 하지 않고, 짧게는 스스로 회복하며, 상한 뒤에는 중단 → 원인 수정 → 재시작으로 같은 record 부터 다시 처리한다. 영구 오류의 DLT 는 중단형이 아니므로 재시도 소진 · recover(DLT 발행) · 그 뒤 offset 진행을 설명하고 테스트로 보인다(아래 조립의 3).
 
@@ -369,7 +370,7 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 - **commit 뒤 발행 누락:** 확정 commit 과 send 사이, 또는 send 콜백 전에 멈추면 이벤트가 사라진다. 기록도 재전송도 없다. 7주차 Outbox 로 개선한다. Outbox 의 재전송은 at-least-once 라 중복 발행이 생기며, stable eventId 와 consumer 멱등 처리가 그 전제다.
 - **DLT 의 구매 활동 누락:** 영구 오류로 DLT 에 간 주문은 구매 활동이 없고 9주차 랭킹에서 빠진다. 재처리 경로는 범위 밖이다.
 - **소비 중단:** 일시적 오류가 상한을 넘으면 이 앱의 구매 활동 소비가 멈춘다(concurrency 1). lag 알림은 범위 밖이라 로그로만 드러난다.
-- **응답 없는 DB:** JDBC socket timeout 이 없어 listener 스레드가 DB 호출 안에서 무기한 기다린다. 재시도 · 상한 · 중단이 동작하지 않고, `max.poll.interval.ms`(5분)를 넘겨 group 에서 빠진 뒤 rebalance 된다. 인스턴스가 여럿이면 넘겨받은 쪽도 같은 일을 겪는다. 드라이버 timeout 도입은 공용 설정 변경이라 따로 결정한다.
+- **응답 없는 DB:** streamer 는 드라이버 timeout(D-98)으로 예외가 되어 재시도 · 상한 · 중단이 동작한다(실험 문서). **commerce-api 는 그대로**라, 응답 없는 DB 에서는 요청 스레드가 무기한 기다릴 수 있다. api 에 넣으려면 결제 TX 의 COMMIT 이 끊겼을 때의 모호성을 따로 다뤄야 한다.
 - **단일 broker:** 복제 수 1 이라 `acks=all` · ISR · broker 장애 내구성을 증명하지 못한다. 실험은 통제된 종료이며 OS 장애 · 네트워크 분할을 시험하지 않는다.
 - **순서:** 주문당 이벤트가 1건이라 같은 key 의 순서 문제는 아직 없다. 한 주문에 이벤트가 여러 건 생기면 DB 쪽 순서 확인이 필요하다.
 
@@ -389,6 +390,7 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 | `docker/infra-compose.yml` | broker 자동 topic 생성 끔, topic 생성 init 단계 |
 | MySQL · Redis · Kafka test fixture | `TEST_LOCAL_INFRA=true` 면 컨테이너 대신 로컬 compose 주소를 씀(두 앱 E2E 실험용, 기본 꺼짐). Kafka fixture 에 컨테이너 접근자(broker 정지 측정용) |
 | commerce-streamer 빌드 | commerce-api 와 같은 checkstyle · ArchUnit 적용 |
+| commerce-streamer 설정 | MySQL 드라이버 `socketTimeout` · `connectTimeout` (D-98) |
 
 ## 10. 테스트
 
@@ -442,7 +444,7 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 
 ### 남은 것
 
-- 없음. 잠정값으로 남은 것: 재시도 상한 5분(D-87). `max.block.ms` 는 측정 뒤 500ms 로 정했다(D-75).
+- 없음. 재시도 상한 5분(D-87)은 실제 장애 실험 · 문헌값으로 유지를 확인했고, `max.block.ms` 는 측정 뒤 500ms 로 정했다(D-75).
 
 ## 12. 결정 요약
 
@@ -476,3 +478,4 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 | D-95 | 로컬 · 테스트 broker 의 자동 topic 생성을 끈다. demo topic 도 init 에서 만든다 |
 | D-96 | Kafka 테스트 fixture 는 `modules:kafka` 의 testFixtures 에 둔다 |
 | D-97 | 테스트 broker 는 로컬 compose 와 같은 Kafka 3.5 대로 맞춘다 |
+| D-98 | streamer 에만 MySQL 드라이버 `socketTimeout` 10s · `connectTimeout` 3s 를 둔다. 응답 없는 DB 에서 listener 가 무기한 기다려 재시도 · 상한이 동작하지 않던 것을 막는다. 끊긴 COMMIT 의 모호함은 멱등 처리로 흡수한다. api 는 결제 TX 영향 때문에 두지 않는다 |
