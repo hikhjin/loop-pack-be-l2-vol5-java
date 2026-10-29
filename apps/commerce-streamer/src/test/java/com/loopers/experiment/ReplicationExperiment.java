@@ -424,6 +424,68 @@ class ReplicationExperiment {
         }
     }
 
+    @DisplayName("unclean 선출 뒤 옛 leader 가 돌아오면 새 leader 기준으로 자기 로그를 잘라, leader 로 되돌려도 잃은 record 는 돌아오지 않는다")
+    @Test
+    void oldLeaderTruncatesAfterUncleanElection() throws Exception {
+        LeaderOnlyWrites writes = writeWhileFollowerBehind("repl-truncate-on-return", "1", 1, true);
+        String topic = writes.topic();
+        assertThat(partitionOf(topic).replicas().get(0).id()).as("처음 leader 가 preferred replica").isEqualTo(writes.leader());
+        long endBefore = endOffset(topic);
+        failLeaderAndReviveFollower(writes);
+        try {
+            electUntilLeader(topic, ElectionType.UNCLEAN, writes.follower());
+        } finally {
+            unpause(broker(writes.leader()));
+        }
+        long endOnNewLeader = endOffset(topic);
+        waitUntil("옛 leader 가 ISR 로 복귀", () -> isrSize(topic, 2));
+        String rejoined = describe(partitionOf(topic));
+        electUntilLeader(topic, ElectionType.PREFERRED, writes.leader());
+        long endBack = endOffset(topic);
+        Set<String> read = readAll(topic);
+        long lost = writes.acked().stream().filter(value -> !read.contains(value)).count();
+        record("| unclean 선출 뒤 옛 leader 복귀 → 다시 leader (RF 2, acks=1 로 leader 만 20건) | 장애 전 " + writes.isrBeforeFailover()
+            + " · 복귀 뒤 " + rejoined + " → " + describe(partitionOf(topic)) + " | 옛 leader 의 끝 offset " + endBefore
+            + " → 새 leader " + endOnNewLeader + " → 옛 leader 로 되돌린 뒤 " + endBack + " · 확인받은 " + writes.acked().size() + "건 중 사라진 " + lost + "건 |");
+        assertThat(endBack).isEqualTo(endOnNewLeader);
+        assertThat(lost).isEqualTo(20);
+    }
+
+    /** leader 가 target 이 될 때까지 선출을 요청함. 이미 선출됐는데 다시 요청하면 ElectionNotNeeded 가 오므로 무시함 */
+    private static void electUntilLeader(String topic, ElectionType type, int target) throws Exception {
+        Instant deadline = Instant.now().plus(WAIT);
+        while (true) {
+            Node now = partitionOf(topic).leader();
+            if (now != null && !now.isEmpty() && now.id() == target) {
+                return;
+            }
+            assertThat(Instant.now()).as(topic + " 의 leader 를 " + target + " 로 선출").isBefore(deadline);
+            try (AdminClient admin = admin()) {
+                admin.electLeaders(type, Set.of(new TopicPartition(topic, 0))).all().get(10, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                log.info("[복제] {} 선출 요청 결과: {}", type, (e.getCause() == null ? e : e.getCause()).getClass().getSimpleName());
+            }
+            Thread.sleep(1000);
+        }
+    }
+
+    /** 현재 leader 의 끝 offset. leader 가 막 바뀌어 metadata 가 늦으면 다시 물음 */
+    private static long endOffset(String topic) throws InterruptedException {
+        Instant deadline = Instant.now().plus(WAIT);
+        while (true) {
+            try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
+                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap(),
+                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
+                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
+                TopicPartition partition = new TopicPartition(topic, 0);
+                return consumer.endOffsets(List.of(partition), Duration.ofSeconds(10)).get(partition);
+            } catch (org.apache.kafka.common.errors.TimeoutException e) {
+                assertThat(Instant.now()).as(topic + " 끝 offset 읽기").isBefore(deadline);
+                Thread.sleep(1000);
+            }
+        }
+    }
+
     private record LeaderOnlyWrites(String topic, int leader, int follower, Set<String> acked, String isrBeforeFailover) {
     }
 
