@@ -173,6 +173,27 @@ class OrderConfirmedPublicationTest {
             );
         }
 
+        @DisplayName("callback 이 reconcile 보다 먼저 와 확정해도 record 하나를 보내고, 뒤늦은 reconcile 은 다시 보내지 않는다.")
+        @Test
+        void publishesOnce_whenCallbackConfirmsFirst() {
+            // arrange
+            Order order = persistDraft(persistProduct(1_000L));
+            confirm(order);
+            pg.complete(onlyTransactionKeyOf(order), "SUCCESS");
+            Map<TopicPartition, Long> before = endOffsets();
+
+            // act
+            orderPaymentFacade.handleCallback(Payment.providerOrderIdOf(order.getId()));
+            orderPaymentFacade.reconcile(USER_ID, order.getId());
+
+            // assert
+            List<ConsumerRecord<String, String>> records = recordsSince(before);
+            assertAll(
+                () -> assertThat(records).hasSize(1),
+                () -> assertThat(records.get(0).key()).isEqualTo(String.valueOf(order.getId()))
+            );
+        }
+
         @DisplayName("0원 주문을 PG 없이 확정해도 record 하나를 보낸다. (D-70)")
         @Test
         void publishesOnce_whenZeroAmount() throws Exception {
