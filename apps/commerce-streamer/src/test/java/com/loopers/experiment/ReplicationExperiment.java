@@ -61,6 +61,8 @@ class ReplicationExperiment {
     private static final Logger log = LoggerFactory.getLogger(ReplicationExperiment.class);
     private static final Path REPORT = Path.of("build", "experiment", "replication.md");
     private static final Duration WAIT = Duration.ofSeconds(60);
+    // controller 가 멈춘 leader 를 fence 하는 시간(broker.session.timeout.ms 기본 9초)보다 넉넉히 봄
+    private static final Duration OBSERVE = Duration.ofSeconds(90);
 
     private static Network network;
     private static final List<ConfluentKafkaContainer> brokers = new ArrayList<>();
@@ -368,12 +370,69 @@ class ReplicationExperiment {
         assertThat(read).isEmpty();
     }
 
+    @DisplayName("unclean 선출을 허용하지 않으면, ISR 밖 replica 만 남았을 때 leader 가 서지 않는다")
+    @Test
+    void noLeaderWithoutUncleanElection() throws Exception {
+        observeLeaderWithoutElectionRequest(false);
+    }
+
+    @DisplayName("unclean 선출을 허용하면, 선출 요청 없이도 ISR 밖 replica 가 leader 가 되는지 본다")
+    @Test
+    void observesUncleanElectionWithoutRequest() throws Exception {
+        observeLeaderWithoutElectionRequest(true);
+    }
+
+    private void observeLeaderWithoutElectionRequest(boolean unclean) throws Exception {
+        String topic = "repl-no-request-unclean-" + unclean;
+        LeaderOnlyWrites writes = writeWhileFollowerBehind(topic, "1", 1, unclean);
+        failLeaderAndReviveFollower(writes);
+        Instant start = Instant.now();
+        Instant deadline = start.plus(OBSERVE);
+        String outcome = "관찰 " + OBSERVE.toSeconds() + "초 동안 leader 없음";
+        String state = describe(partitionOf(topic));
+        Set<String> read = Set.of();
+        try {
+            while (Instant.now().isBefore(deadline)) {
+                TopicPartitionInfo now = partitionOf(topic);
+                state = describe(now);
+                if (now.leader() != null && !now.leader().isEmpty() && now.leader().id() == writes.follower()) {
+                    outcome = Duration.between(start, Instant.now()).toSeconds() + "초 뒤 뒤처진 follower 가 leader 가 됨";
+                    read = readAll(topic);
+                    break;
+                }
+                Thread.sleep(1000);
+            }
+        } finally {
+            unpause(broker(writes.leader()));
+        }
+        // 되살린 broker 가 다시 붙기 전에 다음 topic 을 만들면 controller 가 UnknownServerException 으로 답함
+        waitUntil(topic + " 의 leader 복귀", () -> {
+            try {
+                Node now = partitionOf(topic).leader();
+                return now != null && !now.isEmpty();
+            } catch (Exception e) {
+                return false;
+            }
+        });
+        Set<String> survived = read;
+        String loss = survived.isEmpty() ? "" : " · 확인받은 " + writes.acked().size() + "건 중 사라진 "
+            + writes.acked().stream().filter(value -> !survived.contains(value)).count() + "건";
+        record("| 선출 요청 없음, unclean " + (unclean ? "허용" : "불허") + " (RF 2, acks=1 로 leader 만 20건 → leader 정지) | "
+            + writes.isrBeforeFailover() + " → " + state + " | " + outcome + loss + " |");
+        if (!unclean) {
+            assertThat(outcome).startsWith("관찰");
+        }
+    }
+
+    private record LeaderOnlyWrites(String topic, int leader, int follower, Set<String> acked, String isrBeforeFailover) {
+    }
+
     /**
      * RF 2: leader 와 follower 하나. 세 번째 broker 는 controller quorum 만 지킴.
-     * follower 를 멈춰 ISR 을 leader 하나로 줄인 뒤 20건을 보내고, leader 를 멈춰 뒤처진 follower 를 leader 로 세움
+     * follower 를 멈춰 ISR 을 leader 하나로 줄인 뒤 20건을 보냄
      */
-    private void recordLossOnUncleanFailover(String topic, String acks, int minInsync) throws Exception {
-        createTopic(topic, 2, minInsync, true);
+    private static LeaderOnlyWrites writeWhileFollowerBehind(String topic, String acks, int minInsync, boolean unclean) throws Exception {
+        createTopic(topic, 2, minInsync, unclean);
         TopicPartitionInfo before = partitionOf(topic);
         int leader = before.leader().id();
         int follower = before.replicas().stream().map(Node::id).filter(id -> id != leader).findFirst().orElseThrow();
@@ -391,10 +450,23 @@ class ReplicationExperiment {
                 }
             }
         }
-        String isrBeforeFailover = describe(partitionOf(topic));
-        // leader 를 멈추고 뒤처진 follower 를 살림. 살아 있는 controller 는 follower + 세 번째 노드로 과반 유지
-        pause(broker(leader));
-        unpause(broker(follower));
+        return new LeaderOnlyWrites(topic, leader, follower, acked, describe(partitionOf(topic)));
+    }
+
+    /** leader 를 멈추고 뒤처진 follower 를 살림. 살아 있는 controller 는 follower + 세 번째 노드로 과반 유지 */
+    private static void failLeaderAndReviveFollower(LeaderOnlyWrites writes) {
+        pause(broker(writes.leader()));
+        unpause(broker(writes.follower()));
+    }
+
+    /** 뒤처진 follower 가 leader 가 되도록 unclean 선출을 요청하고, 확인받은 record 중 사라진 수를 기록함 */
+    private void recordLossOnUncleanFailover(String topic, String acks, int minInsync) throws Exception {
+        LeaderOnlyWrites writes = writeWhileFollowerBehind(topic, acks, minInsync, true);
+        int leader = writes.leader();
+        int follower = writes.follower();
+        Set<String> acked = writes.acked();
+        String isrBeforeFailover = writes.isrBeforeFailover();
+        failLeaderAndReviveFollower(writes);
         String after;
         Set<String> read;
         String election = "자동 선출됨";
