@@ -37,6 +37,12 @@ datasource:
   mysql-jpa:
     main:
       connection-init-sql: SET SESSION innodb_lock_wait_timeout = 3
+      # 응답 없는 DB 에서 요청이 스레드 · 커넥션을 쥔 채 무기한 기다려 다른 API 까지 멈추지 않게 함 (6주차 D-99).
+      # 잠금 대기 3s · 최장 쿼리 약 1s 보다 길게 둠. COMMIT 이 끊기면 결과가 모호하지만 같은 시도 키 재요청 · reconcile 이 저장 상태로 이어 감
+      data-source-properties:
+        socketTimeout: 10000
+        # Hikari connection-timeout(3s)보다 오래 연결을 시도해도 기다리는 쪽이 없음
+        connectTimeout: 3000
 
 # 로컬 테스트 PG 계약 (5주차 설계 3.1, 5). 실제 PG · 카드 · 외부 주소는 쓰지 않음
 payment:
