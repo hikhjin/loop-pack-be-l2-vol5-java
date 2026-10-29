@@ -32,6 +32,9 @@ dependencies {
     testImplementation(testFixtures(project(":modules:redis")))
     testImplementation(testFixtures(project(":modules:kafka")))
 
+    // 복제 장애 실험의 broker 3대 cluster (버전은 Spring Boot BOM 이 관리함)
+    testImplementation("org.testcontainers:kafka")
+
     // architecture
     testImplementation("com.tngtech.archunit:archunit:1.5.0")
 }
