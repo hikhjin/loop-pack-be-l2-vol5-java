@@ -22,6 +22,7 @@ AI와 함께 이 저장소에서 기능을 구현할 때 따르는 규칙입니�
 ./gradlew :apps:commerce-api:test --tests '*ArchitectureTest'
 ./gradlew :apps:commerce-api:checkstyleMain :apps:commerce-api:checkstyleTest
 ./gradlew :apps:commerce-api:check
+./gradlew :apps:commerce-streamer:check
 ```
 
 ## 검사를 우회하지 않는다

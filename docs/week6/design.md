@@ -403,12 +403,15 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 - **7.2 의 hook 은 포트 구현을 대역으로 바꿔 꽂는다.**
 - **compose init 은 broker healthy 뒤 한 번 실행되는 `kafka-init` 서비스가 `kafka-topics.sh --create --if-not-exists` 로 만든다.**
 
+- **streamer 는 기능 `purchase` 로 CLAUDE.md 구조를 따르고, commerce-api 와 같은 checkstyle · ArchUnit 을 적용한다.** 테이블은 `processed_order_confirmation` · `product_purchase_activity` 다.
+- **검증은 둘로 나눈다.** 메시지 형식(JSON · 필수 필드 · eventType · schemaVersion · key 일치)은 `interfaces/consumer` 의 `OrderConfirmedParser`, 사실의 규칙(품목 · 수량 · 중복 상품 · 정밀도)은 domain vo `OrderConfirmation` 생성자가 검사한다.
+- **영구 오류는 streamer `support/error` 의 `RejectedEventException` 하나와 사유 `RejectReason` 으로 표현한다.** 5.2 의 분류는 이 예외 하나만 영구 오류로 본다. 사유마다 예외를 두면 분류 목록에서 하나를 빠뜨렸을 때 그 오류가 일시적 오류로 가서 소비가 멈춘다.
+- **저장 TX 와 재판정 TX 는 `PurchaseActivityFacade`(TX 없음)가 `PurchaseActivityService` 의 `record` · `judge` 를 따로 불러 나눈다.** 서비스 하나만 협력하므로 api 의 Steps 는 두지 않았다. 판정은 처리 기록 엔티티와 서비스가 한다.
+
 ### 남은 것
 
-- 4.4 재판정 TX 의 bean 분리, 영구 오류 예외 타입.
 - 5.2 error handler 조립 방식(구현 위험 참고).
-- 테이블 · group · 테스트 클래스 이름.
-- streamer 의 패키지 구조와 ArchUnit 적용 여부.
+- group 이름.
 
 ## 12. 결정 요약
 
