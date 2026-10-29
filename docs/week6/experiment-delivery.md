@@ -234,3 +234,40 @@ streamer 에 Connector/J `socketTimeout=10000` · `connectTimeout=3000` 을 넣�
 - 노드가 broker 겸 controller 라 한 번에 1대만 멈췄다(2대를 멈추면 controller quorum 이 깨져 선출 자체가 안 된다). ISR 부족은 `min.insync.replicas=3` 으로, `acks=1` 유실은 RF 2 topic 으로 만들었다.
 - 실험 producer 는 `acks` 차이만 보려고 idempotence 를 껐다. 켜면 producer ID 요청이 멈춘 broker 로 가 시간을 넘기는 일이 섞였다.
 - 확인하지 못한 것: 네트워크 분할, broker 프로세스 강제 종료(pause 만 씀), 여러 partition · 대량 트래픽에서의 동작.
+
+## 여러 partition · 많은 이벤트
+
+`apps/commerce-streamer/.../experiment/ThroughputExperiment` (`RUN_EXPERIMENT=true`). 운영 listener factory(ack mode · error handler · 직렬화)로 컨테이너를 직접 만들고 concurrency 만 바꿨다. 실제 consumer · facade · DB 를 거친다. 확정 이벤트 1만 건(이벤트당 품목 2), partition 3. 노트북 Docker 의 broker 1대 · MySQL 1대 수치라 **절대값보다 비교**에 의미가 있다.
+
+### A: concurrency 별 처리 속도
+
+| concurrency | consumer 별 배정 | 처리 시간 | 초당 처리 |
+|---|---|---|---|
+| 1 | [0,1,2] | 65.0s | 161 |
+| 3 | [0] · [1] · [2] | 28.5s | 351 |
+| 5 | [] · [2] · [] · [0] · [1] | 26.2s | 385 |
+
+- **partition 수까지는 consumer 를 늘리면 빨라진다.** 1 → 3 에서 약 2.2배였다. record 마다 DB 트랜잭션을 쓰므로 consumer 하나가 DB 왕복을 기다리는 동안 다른 partition 이 놀지 않게 된다.
+- **partition 수를 넘는 consumer 는 일을 받지 못한다.** concurrency 5 에서 둘은 배정이 비었고, 속도는 3 과 같은 수준이었다(차이는 측정 편차 범위).
+- 세 측정 모두 서로 다른 주문 1만 건이 정확히 한 번 저장됐다.
+- **발행 중 생긴 중복:** 만든 직후의 topic 에 보내다 실패로 보인 record 를 다시 보냈더니, 일부는 실제로는 이미 저장돼 있어 topic 에 같은 eventId 가 중복으로 쌓였다(concurrency 1 측정 497건, 5 측정 70건). 앱이 같은 업무를 새 record 로 다시 보내면 idempotent producer 로도 막지 못하는 경우이며, consumer 의 같은 사실 판정이 모두 no-op 으로 흡수했다. 7주차 Outbox relay 의 재전송이 만드는 중복도 같은 방식으로 흡수된다.
+
+### B: 소비 도중 rebalance
+
+인스턴스 하나(concurrency 1)로 소비를 시작하고, 30% 에서 다른 인스턴스(concurrency 2)가 합류, 60% 에서 첫 인스턴스가 이탈했다.
+
+| 항목 | 값 |
+|---|---|
+| 배정 | [0,1,2] → 합류 뒤 [0] + [1] · [2] → 이탈 뒤 [0,1] · [2] |
+| 발행된 record · 저장 · 재전달 | 10000 · 10000 · 0 |
+| 처리 기록 · 서로 다른 주문 | 10000 · 10000 |
+| 구매 활동 행 · 수량 합 | 20000 · 30000 (기대값과 같음) |
+| 남은 lag | 0 |
+
+- **rebalance 두 번에도 주문마다 정확히 한 번 저장됐다.** 유실 0, 중복 0.
+- 재전달이 0건인 것은 record 마다 DB commit 직후 즉시 ack(`MANUAL_IMMEDIATE`)하고, 이탈이 정상 종료였기 때문이다. 처리 중 강제로 죽으면 DB commit 뒤 ack 전 record 가 재전달되며, 그 경우는 7.3 에서 no-op 으로 흡수됨을 확인했다.
+
+### D-88(concurrency 1)에 대한 판단
+
+- 로컬 기준 concurrency 1 로도 초당 160건, 시간당 약 58만 건을 처리한다. 지금 확정 주문 규모에서는 부족하지 않아 1 을 유지한다.
+- 처리량이 필요해지면 partition 수(3)까지 늘리면 효과가 있다. 그 이상은 partition 을 먼저 늘려야 한다.

@@ -526,7 +526,7 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 | D-85 | 유일 제약 위반은 rollback 뒤 별도 TX 에서 다시 읽어 판정한다. 기록이 없으면 다른 오류로 던진다 |
 | D-86 | 영구 오류(검증 실패 · 충돌)는 재시도 없이 DLT 로 보낸다. 영구 오류는 명시적으로 나열하고 나머지는 일시적 오류로 본다 |
 | D-87 | 일시적 · 미분류 오류는 partition 을 pause 한 채 지수 backoff 로 재시도하고, 총 상한(잠정 5분)을 넘으면 컨테이너를 중단한다 |
-| D-88 | 구매 활동 전용 record listener factory, `MANUAL_IMMEDIATE`, concurrency 1 |
+| D-88 | 구매 활동 전용 record listener factory, `MANUAL_IMMEDIATE`, concurrency 1. 1만 건 실험에서 1 → 3 은 약 2.2배 빨랐고 partition 수(3)를 넘는 consumer 는 효과가 없었다. 지금 규모(로컬 초당 160건)에서는 1 을 유지한다 |
 | D-89 | `order-events` 와 `order-events.DLT` 는 partition 3 |
 | D-90 | topic 은 인프라(compose init · 테스트 fixture)가 만든다 |
 | D-91 | 공용 설정의 오타 · 주소 오류 4건(deserializer, auto commit 키, admin 주소, streamer 이름)을 고친다 |
