@@ -351,7 +351,9 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 | 대상 | 변경 |
 |---|---|
 | `Order` | `confirmedAt` 추가. 세 확정 메서드가 마이크로초로 자른 같은 `now` 로 `paidAt` 과 함께 넣음 |
-| `OrderPaymentSteps` | 최초 확정(0원 분기 · `CONSUME`)에서 애플리케이션 이벤트 발행. payload 는 TX 안에서 복사 |
+| `OrderService` | 최초 확정(`confirmPaid` · `confirmWithoutPayment`)에서 `OrderConfirmed` 애플리케이션 이벤트 발행. payload 는 TX 안에서 복사 |
+| 발행 구조 | 확정 사실 `domain/order/vo/OrderConfirmed`, 포트 `domain/order/gateway/OrderEventPublisher`, AFTER_COMMIT listener `application/order/listener/OrderConfirmedListener`, Kafka 구현 · 메시지 타입 `infrastructure/order/messaging` |
+| CLAUDE.md | application `listener`, infrastructure `messaging` 하위 패키지 추가 |
 | commerce-api `build.gradle.kts` | `modules:kafka` 의존성, 테스트에 `testFixtures(project(":modules:kafka"))` |
 | commerce-api 설정 | `kafka.yml` import, producer `max.block.ms` |
 | `modules:kafka` `kafka.yml` | 6.2 정정 |
@@ -393,13 +395,19 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 
 ## 11. 구현 제안 때 정할 것
 
-- 애플리케이션 이벤트를 누가 낼지(Steps 또는 도메인 서비스), Kafka 발행 포트를 어느 계층 · 패키지에 둘지. application 은 infrastructure 에 의존하지 않으므로 포트 인터페이스가 필요하다.
-- 확정 시각을 자르는 위치: `Order` 확정 메서드 안 또는 `OrderService`.
-- 7.2 의 "commit 뒤 send 직전" hook 을 꽂을 자리.
+### 정한 것
+
+- **확정 시각은 `Order` 확정 메서드 안에서 자른다.** "DB 와 같은 값을 갖는다"는 엔티티의 불변 조건이라 `BaseEntity` 와 같은 자리에 둔다. 타입은 기존 코드와 같은 `ZonedDateTime` 을 유지한다(`LocalDateTime` 은 이벤트를 UTC 로 바꿀 때 시간대 가정이 필요하다). `confirmedAt` 은 조회 API 에 노출하지 않는다.
+- **애플리케이션 이벤트는 `OrderService` 의 확정 메서드가 낸다.** 상태 전이 바로 옆이라 다른 경로에서 불러도 빠지지 않는다. Steps 는 Steps 를 거치지 않는 확정에서 빠지고, 엔티티 도메인 이벤트는 `save()` 없이 변경 감지로 저장하는 지금 경로와 맞지 않아 버렸다.
+- **발행은 domain 포트 + application listener + infrastructure 구현으로 나눈다.** "commit 뒤에 보낸다"는 트랜잭션 경계 정책이라 application 에 두고, 전송 기술은 infrastructure 에 둔다. 7주차 Outbox relay 가 같은 포트를 부를 수 있다. 버린 대안(infrastructure listener 가 바로 send)은 정책과 기술이 한곳에 섞인다.
+- **7.2 의 hook 은 포트 구현을 대역으로 바꿔 꽂는다.**
+- **compose init 은 broker healthy 뒤 한 번 실행되는 `kafka-init` 서비스가 `kafka-topics.sh --create --if-not-exists` 로 만든다.**
+
+### 남은 것
+
 - 4.4 재판정 TX 의 bean 분리, 영구 오류 예외 타입.
 - 5.2 error handler 조립 방식(구현 위험 참고).
 - 테이블 · group · 테스트 클래스 이름.
-- compose init 의 구체 방식(broker healthy 뒤 `kafka-topics.sh --create --if-not-exists`).
 - streamer 의 패키지 구조와 ArchUnit 적용 여부.
 
 ## 12. 결정 요약
