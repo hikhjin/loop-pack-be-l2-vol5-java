@@ -40,6 +40,16 @@ order-event:
     max-interval: 30s
     max-elapsed: 5m
 
+# 응답 없는 DB 에서 listener 가 예외 없이 무기한 기다리면 재시도 · 상한이 동작하지 않아 드라이버에 상한을 둠 (6주차 D-98).
+# 문장이 ms 단위라 정상 처리는 끊지 않음. 끊긴 COMMIT 의 결과가 모호해도 재전달을 멱등 처리로 흡수함. 공용 jpa.yml 은 api 결제 TX 영향 때문에 바꾸지 않음
+datasource:
+  mysql-jpa:
+    main:
+      data-source-properties:
+        socketTimeout: 10000
+        # Hikari connection-timeout(3s)보다 오래 연결을 시도해도 기다리는 쪽이 없음
+        connectTimeout: 3000
+
 ---
 spring:
   config:
