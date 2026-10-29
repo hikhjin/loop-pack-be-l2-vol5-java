@@ -258,6 +258,6 @@ class OrderConfirmedPublicationTest {
     @DisplayName("producer 는 commerce-api 의 max.block.ms 를 실제 설정으로 받는다. (D-75, D-93)")
     @Test
     void producerReceivesMaxBlock() {
-        assertThat(String.valueOf(producerFactory.getConfigurationProperties().get(ProducerConfig.MAX_BLOCK_MS_CONFIG))).isEqualTo("1000");
+        assertThat(String.valueOf(producerFactory.getConfigurationProperties().get(ProducerConfig.MAX_BLOCK_MS_CONFIG))).isEqualTo("500");
     }
 }

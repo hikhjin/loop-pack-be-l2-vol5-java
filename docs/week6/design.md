@@ -126,13 +126,17 @@ TX A 또는 TX B (Steps)
 
 | 설정 | 값 | 위치 | 이유 |
 |---|---|---|---|
-| `max.block.ms` | **1000 (잠정)** | commerce-api | `send()` 는 비동기지만 metadata 를 못 받으면 이 시간만큼 호출 스레드가 막힌다. AFTER_COMMIT 은 요청 스레드에서 실행되므로 이 값이 broker 장애 때 API 에 더해지는 최대 지연이다. 기본 60s 는 Tomcat 스레드를 묶어 다른 API 까지 멈춘다. 핵심 경로 외부 호출 중 가장 짧은 PG lookup read timeout(1s)을 넘지 않게 잡았다 |
+| `max.block.ms` | **500** (잠정 1000 에서 측정 뒤 조정) | commerce-api | `send()` 는 비동기지만 metadata 를 못 받으면 이 시간만큼 호출 스레드가 막힌다. AFTER_COMMIT 은 요청 스레드에서, 커넥션 반납 전에 실행되므로 이 값이 broker 장애 때 API 응답과 DB 커넥션이 묶이는 최대 시간이다(측정으로 확인). 기본 60s 는 Tomcat 스레드와 커넥션 풀을 묶어 다른 API 까지 멈춘다. 아래 측정 근거로 정했다 |
 | `retries` | 3 (유지) | 공용 `kafka.yml` | 짧은 재시도 안에 결과를 확정해 실패 로그가 빨리 남는다. idempotent producer 라 재시도로 broker 에 중복이 생기지 않는다 |
 | `acks` | 클라이언트 기본값 `all` | — | 단일 broker(복제 1)라 복제 장애 내구성은 확인하지 못한다 (8장) |
 
 - **commerce-api 에만 해당하는 값은 commerce-api 설정에 둔다.** 1s 의 근거가 commerce-api 의 응답 시간 예산이기 때문이다. 직렬화기처럼 모든 producer 에 공통인 값은 공용에 남긴다.
 - **설정 우선순위 주의:** `spring.config.import` 로 불러온 `kafka.yml` 의 값이 commerce-api `application.yml` 의 값보다 우선한다. `kafka.yml` 에 이미 있는 키는 commerce-api 에서 덮어쓸 수 없다. 실제 producer 에 적용된 값을 테스트로 확인한다.
-- **`max.block.ms` 는 구현 뒤 다시 정한다.** 측정할 것: 앱 시작 직후 첫 send 의 막힘 시간(하한 근거), broker 를 멈춘 상태의 confirm 응답 시간, 그 동안 Hikari active 커넥션 수(AFTER_COMMIT 에서 커넥션을 쥐고 있는지).
+- **`max.block.ms` 는 측정해 500ms 로 정했다** (`docs/week6/experiment-delivery.md` 측정 절).
+  - 정상 broker 에서 새 producer 의 첫 send 는 10ms 미만이었다. 실행 중 broker 가 멈춰도 metadata 가 캐시돼 있으면 응답이 늘지 않았다.
+  - broker 가 없는 채 producer 를 새로 만들면 confirm 이 이 값만큼 늘고, 그 동안 DB 커넥션을 쥐고 있었다. 1s 는 정상 첫 send 보다 100배 이상 커서 여유가 지나쳤다.
+  - 200ms 는 버렸다. 로컬 측정은 운영 네트워크의 첫 연결(TLS · 인증 · 다른 가용 영역)이나 leader 이동 중의 metadata 갱신을 대표하지 않고, Outbox 전이라 넘기면 그 이벤트를 잃는다. 응답이 조금 늦는 편을 골랐다.
+  - 7주차 Outbox 로 send 가 요청 경로에서 빠지면 이 값의 영향은 relay 쪽으로 옮겨 간다.
 
 ### 3.6 남는 누락 구간
 
@@ -432,7 +436,7 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 
 ### 남은 것
 
-- 없음. 측정으로 다시 정할 잠정값: `max.block.ms` 1s(D-75), 재시도 상한 5분(D-87).
+- 없음. 잠정값으로 남은 것: 재시도 상한 5분(D-87). `max.block.ms` 는 측정 뒤 500ms 로 정했다(D-75).
 
 ## 12. 결정 요약
 
@@ -443,7 +447,7 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 | D-72 | 발행은 `@TransactionalEventListener(AFTER_COMMIT)` 에서 한다. payload 는 TX 안에서 복사하고, 최초 확정이 일어난 실행만 발행한다 |
 | D-73 | 발행 실패는 ERROR 로그로만 드러낸다. 기록 · 재전송은 7주차 Outbox 가 맡는다 |
 | D-74 | send 결과는 기다리지 않고 `whenComplete` 콜백에서 로그로 남긴다 |
-| D-75 | `max.block.ms` 잠정값 1s. 구현 뒤 측정해 다시 정한다 |
+| D-75 | `max.block.ms` 는 500ms. 잠정 1s 에서 측정(정상 첫 send 10ms 미만, 장애 때 그 시간만큼 응답 · 커넥션이 묶임) 뒤 낮췄다 |
 | D-76 | 처리 기록의 eventId 와 orderId 에 각각 유일 제약을 건다. 구매 활동은 `(order_id, product_id)` 유일 |
 | D-77 | 처리 기록은 주문 확정 이벤트 전용 테이블로 둔다 |
 | D-78 | `confirmed_at` 은 처리 기록에만 두고 구매 활동은 join 으로 얻는다 |
