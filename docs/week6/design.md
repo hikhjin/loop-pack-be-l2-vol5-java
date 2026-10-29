@@ -29,6 +29,35 @@
 
 주문 확정이 구매 활동 저장을 직접 호출하면, 구매 활동 저장이 느리거나 실패할 때 이미 성공한 결제를 어떻게 할지 주문 서비스가 판단해야 한다. `OrderConfirmed` 는 "주문이 확정됐다"는 과거 사실이라, 후속 소비가 실패해도 확정을 취소하지 않는다. 대신 실패가 사라지는 것이 아니라 **전달 지연 · 중복 · 누락을 다뤄야 하는 경계**로 옮겨진다. 이 문서의 나머지는 그 경계를 다룬다.
 
+### 경계와 실패 시점
+
+```
+ commerce-api                       Kafka                      commerce-streamer
+ ──────────────────────────         ───────────────            ─────────────────────────────────────
+ [DB TX] 주문 확정 · 예약 소비                                    
+    │ ① commit 전 실패 → 전부 rollback, 이벤트 없음
+ commit
+    │ ② commit 과 send 사이 멈춤 → 확정은 남고 이벤트 없음 (누락 구간, 7주차 Outbox)
+ AFTER_COMMIT → send ──────────▶ order-events (key=orderId)
+    │ ③ broker 장애 → 콜백 실패 로그, 주문은 그대로                 │
+                                                              poll
+                                          ④ 형식 · 계약 위반 · 충돌 → DLT, offset 진행
+                                                              [DB TX] 처리 기록 + 모든 품목
+                                          ⑤ commit 전 실패 → rollback, ack 없음 → 재시도 · 상한 뒤 중단
+                                                              commit
+                                          ⑥ commit 과 ack 사이 멈춤 → 재전달 → 같은 사실이라 no-op
+                                                              ack → offset n+1 commit
+```
+
+| 지점 | 무엇이 남나 | 다루는 곳 |
+|---|---|---|
+| ① 확정 TX 실패 | 아무것도 남지 않음. 발행 조건(최초 확정 commit)이 성립하지 않음 | 3.3 |
+| ② commit 뒤 send 전 | 확정 · 예약 소비, 이벤트 없음 | 3.6, 7.2 |
+| ③ send 실패 | 확정은 그대로, 실패 로그 | 3.4 |
+| ④ 영구 오류 | DLT record(업무 완료 아님) | 5.2 |
+| ⑤ 소비 TX 실패 | 활동 · 처리 기록 없음, offset 그대로 | 4.4, 5.2 |
+| ⑥ 소비 commit 뒤 ack 전 | 활동 · 처리 기록, offset 그대로 → 재전달 no-op | 4.3, 7.3 |
+
 ## 2. 이벤트 계약
 
 | 항목 | 값 |
@@ -128,7 +157,7 @@ TX A 또는 TX B
 |---|---|---|---|
 | `max.block.ms` | **500** (잠정 1000 에서 측정 뒤 조정) | commerce-api | `send()` 는 비동기지만 metadata 를 못 받으면 이 시간만큼 호출 스레드가 막힌다. AFTER_COMMIT 은 요청 스레드에서, 커넥션 반납 전에 실행되므로 이 값이 broker 장애 때 API 응답과 DB 커넥션이 묶이는 최대 시간이다(측정으로 확인). 기본 60s 는 Tomcat 스레드와 커넥션 풀을 묶어 다른 API 까지 멈춘다. 아래 측정 근거로 정했다 |
 | `retries` | 3 (유지) | 공용 `kafka.yml` | 짧은 재시도 안에 결과를 확정해 실패 로그가 빨리 남는다. idempotent producer 라 재시도로 broker 에 중복이 생기지 않는다 |
-| `acks` | 클라이언트 기본값 `all` | — | 설정하지 않아 kafka-clients 3.8 기본값을 쓴다. 테스트 로그의 `Instantiated an idempotent producer` 가 근거다(idempotence 는 `acks=all` 에서만 켜진다). 단일 broker(복제 1)라 복제 장애 내구성은 확인하지 못한다 (8장) |
+| `acks` | 클라이언트 기본값 `all` | — | 설정하지 않아 kafka-clients 3.8 기본값을 쓴다. 테스트 로그의 `Instantiated an idempotent producer` 가 근거다(idempotence 는 `acks=all` 에서만 켜진다). 단일 broker(복제 1)라 복제 장애 내구성은 아래 절과 cluster 실험으로 따로 다룬다 |
 
 - **commerce-api 에만 해당하는 값은 commerce-api 설정에 둔다.** 1s 의 근거가 commerce-api 의 응답 시간 예산이기 때문이다. 직렬화기처럼 모든 producer 에 공통인 값은 공용에 남긴다.
 - **설정 우선순위 주의:** `spring.config.import` 로 불러온 `kafka.yml` 의 값이 commerce-api `application.yml` 의 값보다 우선한다. `kafka.yml` 에 이미 있는 키는 commerce-api 에서 덮어쓸 수 없다. 실제 producer 에 적용된 값을 테스트로 확인한다.
@@ -137,6 +166,24 @@ TX A 또는 TX B
   - broker 가 없는 채 producer 를 새로 만들면 confirm 이 이 값만큼 늘고, 그 동안 DB 커넥션을 쥐고 있었다. 1s 는 정상 첫 send 보다 100배 이상 커서 여유가 지나쳤다.
   - 200ms 는 버렸다. 로컬 측정은 운영 네트워크의 첫 연결(TLS · 인증 · 다른 가용 영역)이나 leader 이동 중의 metadata 갱신을 대표하지 않고, Outbox 전이라 넘기면 그 이벤트를 잃는다. 응답이 조금 늦는 편을 골랐다.
   - 7주차 Outbox 로 send 가 요청 경로에서 빠지면 이 값의 영향은 relay 쪽으로 옮겨 간다.
+
+#### `acks` 와 복제 보장
+
+`acks` 는 producer 가 "보냈다"고 판단하기 전에 broker 의 어떤 확인을 기다릴지 정한다.
+
+| 설정 | 기다리는 확인 | 잃을 수 있는 경우 |
+|---|---|---|
+| `acks=0` | 없음. 보내자마자 성공 | broker 가 받지 못해도 모른다 |
+| `acks=1` | leader 가 자기 로그에 썼다는 확인 | follower 에 복제되기 전에 leader 가 죽고 다른 replica 가 leader 가 되면 그 record 가 사라진다 |
+| `acks=all` | 그 순간 ISR(동기화된 replica) 모두가 썼다는 확인 | ISR 이 leader 하나뿐이면 `acks=1` 과 같다. 그래서 `min.insync.replicas` 로 "ISR 이 이보다 작으면 쓰기를 거절"을 함께 둔다 |
+
+- **`acks=all` 을 쓴다.** 주문 확정 이벤트는 잃으면 구매 활동이 영영 빠지는 사실이고, 이번 주는 Outbox 가 없어 broker 가 받지 못한 이벤트를 다시 보낼 방법이 없다. 그래서 "받았다"는 확인을 가장 강하게 받는다. idempotent producer(기본 켜짐)도 `acks=all` 을 요구한다. 비용은 복제를 기다리는 만큼의 전송 지연이며, 콜백으로 결과를 받으므로(D-74) 확정 응답에는 더해지지 않는다.
+- **단일 broker 에서 증명되지 않는 것.** 로컬 compose 와 테스트 broker 는 1대(복제 1)라 ISR 이 늘 leader 하나다. 그래서 이 환경의 `acks=all` 은 `acks=1` 과 같은 보장만 주고, 아래는 확인할 수 없다.
+  - leader 가 죽었을 때 `acks=all` 로 확인받은 record 가 새 leader 에 남는가
+  - ISR 이 `min.insync.replicas` 보다 작아지면 쓰기가 거절되는가(거절돼야 producer 가 실패를 알고 로그를 남긴다)
+  - `acks=1` 이면 같은 장애에서 확인받은 record 를 실제로 잃을 수 있는가
+- 위 세 가지는 broker 3대 cluster 실험으로 따로 확인했다(실험 문서 "복제 장애" 절). `acks=all` 로 확인받은 100건은 leader 장애 뒤에도 모두 남았고, ISR 이 `min.insync.replicas` 보다 작으면 broker 가 `NOT_ENOUGH_REPLICAS` 로 거절했다. `acks=1` 은 follower 가 뒤처진 동안 leader 만 받은 20건을 unclean 선출 뒤 잃었다.
+- 운영 topic 은 replication factor 3 · `min.insync.replicas=2` 를 전제로 한다. 이번 compose 는 broker 1대라 둘 다 1 이다.
 
 ### 3.6 남는 누락 구간
 
@@ -372,7 +419,7 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 - **소비 중단:** 일시적 오류가 상한을 넘으면 이 앱의 구매 활동 소비가 멈춘다(concurrency 1). lag 알림은 범위 밖이라 로그로만 드러난다.
 - **응답 없는 DB:** 두 앱 모두 드라이버 timeout(D-98, D-99)으로 약 20초 안에 예외가 된다. streamer 는 재시도 · 상한 · 중단이 동작하고, api 요청은 실패 응답으로 끝나 스레드 · 커넥션을 놓는다(실험 문서).
 - **COMMIT 순간에 끊기면 결과가 모호하다.** Spring 은 COMMIT 예외 때 AFTER_COMMIT 발행을 하지 않는다. 결제 시작(TX A)이 실제로 commit 됐다면 5주차의 "발송 기록 뒤 멈춤(REQUESTED + 조회 0건)"과, 결과 적용(TX B)이 commit 됐다면 6주차 commit 뒤 발행 누락과 같은 상태가 된다. 재현하지 못해 코드로만 따졌다.
-- **단일 broker:** 복제 수 1 이라 `acks=all` · ISR · broker 장애 내구성을 증명하지 못한다. 실험은 통제된 종료이며 OS 장애 · 네트워크 분할을 시험하지 않는다.
+- **단일 broker:** 실습 환경(compose · 테스트 broker)은 복제 수 1 이라 그 안의 실험으로는 `acks=all` · ISR 의 장애 내구성을 증명하지 못한다. 이 보장은 broker 3대 cluster 실험으로 따로 확인했다(3.5). 실험은 모두 통제된 정지(pause)이며 프로세스 강제 종료 · 네트워크 분할은 시험하지 않았다.
 - **순서:** 주문당 이벤트가 1건이라 같은 key 의 순서 문제는 아직 없다. 한 주문에 이벤트가 여러 건 생기면 DB 쪽 순서 확인이 필요하다.
 
 ## 9. 기존 코드 · 설정 변경
@@ -407,7 +454,7 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 | 장면 | 핵심 기대 결과 | 위치 |
 |---|---|---|
 | PG 확정 → Kafka → streamer (두 앱) | 저장된 품목 · 수량 · confirmedAt 과 같은 구매 활동 | api `OrderConfirmedEndToEndExperiment` (로컬 compose, 실험 문서 7.2) |
-| PG SUCCESS · 0원 주문 확정 | 주문 key 로 DB 사실과 같은 record 하나 | api `OrderConfirmedPublicationTest` |
+| PG SUCCESS(reconcile · callback 중 먼저 온 쪽) · 0원 주문 확정 | 주문 key 로 DB 사실과 같은 record 하나, 뒤늦은 쪽은 다시 보내지 않음 | api `OrderConfirmedPublicationTest` |
 | 대기 · UNKNOWN · 실패 · 확정 rollback · 이전 POINT 확정 | `OrderConfirmed` 발행 없음 | 〃 |
 | 중복 callback · reconcile | 새 이벤트 · 추가 재고 차감 없음 | 〃 |
 | confirmedAt 저장 | 마이크로초로 잘림, payload = DB 값, 중복 callback 이 바꾸지 못함 | `OrderTest` · `OrderRepositoryIntegrationTest` · `OrderConfirmedPublicationTest` |
@@ -425,6 +472,16 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 | 기존 기능 | PG · 예약 · 이전 POINT 사실 · 소유권 · 삭제 비노출 보존 | 기존 테스트 |
 
 - 테스트 0건 · skip · broker 연결 실패는 성공이 아니다.
+
+### 반례 검토
+
+설계를 마친 뒤 AI(Claude)에게 아래 반례를 검토하게 하고, 막는 규칙과 그 규칙을 고정한 테스트를 맞춰 봤다.
+
+| 반례 | 막지 않으면 | 채택한 규칙 | 테스트 |
+|---|---|---|---|
+| DB 저장 뒤 commit 전에 멈춤 | 소비: 활동 일부만 남거나 처리 기록 없이 활동만 남음. 발행: rollback 된 확정의 이벤트가 나감 | 처리 기록과 모든 품목을 한 TX 로 저장하고 commit 뒤에만 ack(4.4). 발행은 AFTER_COMMIT 에서만(3.3). commit 뒤 ack 전에 멈추면 재전달을 no-op 으로 흡수 | `PurchaseActivityIntegrationTest`(품목 저장 중 실패 → 전체 rollback), `OrderConfirmedListenerTest`(rollback 이면 발행 없음), `KafkaDeliveryTest`(DB commit 뒤 미커밋 재전달 → no-op) |
+| handler 가 예외를 삼킴 | 처리하지 못한 record 를 ack 해 broker 에는 처리 완료로 보이고 구매 활동이 빠짐 | listener 는 예외를 잡지 않고 facade 가 정상 반환한 뒤에만 ack. 실패는 error handler 가 재시도 · DLT · 중단으로만 끝냄(5.2). 발행 쪽에서 예외를 삼키는 것은 확정이 이미 commit 된 뒤라 의도한 정책(D-73) | `OrderConfirmedConsumerTest`(일시적 오류 동안 offset 이 그 record 에 머묾, 상한 뒤 중단 · 재시작 후 저장) |
+| 같은 ID 로 다른 수량 수신 | `INSERT IGNORE` 로 숨기면 계약 위반을 놓치고, 받아 주면 구매가 두 번 기록됨 | 처리 기록 · 활동과 필드를 직접 비교해 다르면 `CONFLICTING_CONTENT` 로 거절하고 DLT(4.3) | `PurchaseActivityIntegrationTest`(수량 · 시각 · 상품이 다르면 거절, 행 변화 없음), `OrderConfirmedConsumerTest`(충돌 record 는 DLT, 첫 사실 유지) |
 
 ## 11. 구현 제안 때 정할 것
 

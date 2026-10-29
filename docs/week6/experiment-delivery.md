@@ -5,6 +5,9 @@
 - 실행일: 2026-10-29, 로컬 Docker. 실험 코드는 커밋 `00ac8cb` 시점(측정 표는 `max.block.ms=1000`, 이후 `89cb956` 에서 500 으로 조정). broker 는 Testcontainers `cp-kafka:7.5.3`(Apache Kafka 3.5, 복제 1) 또는 로컬 compose `bitnamilegacy/kafka:3.5.1`(복제 1)
 - **단일 broker 한계:** 복제 · ISR · `acks=all` 의 장애 내구성, broker 장애 중 leader 이동, 네트워크 분할은 시험하지 않았다. 아래 "broker 정지"는 `docker pause`(응답 없음)이며 연결 거부 · 프로세스 종료와는 다른 장애다.
 
+- **broker 주소 (endpoint):** 테스트는 `KafkaTestContainersConfig` 가 JVM 당 한 번 띄운 컨테이너의 호스트 주소(`getBootstrapServers()`, 매핑된 포트)를 `spring.kafka.bootstrap-servers` System property 로 넣는다. producer · consumer · admin 이 모두 이 주소를 쓰고, 컨테이너 내부 주소(`kafka:9092`)는 쓰지 않는다. 두 앱 E2E 만 로컬 compose 의 `localhost:19092` 를 쓴다(`TEST_LOCAL_INFRA=true`).
+- **정리 책임:** 컨테이너(Kafka · MySQL · Redis)는 Testcontainers 가 JVM 종료 때 정리한다. 테스트가 만든 topic 은 `KafkaTopics.deleteCreated()` 로 자기가 만든 것만 지우고, consumer · producer 는 각 테스트가 닫는다. DB 는 `DatabaseCleanUp` 으로 테스트마다 비운다. 실험이 직접 띄운 컨테이너(E2E 임시 MySQL, MySQL 재시작 측정, broker 3대 cluster)는 실험이 끝나면 지웠다. 다른 실행의 topic · group · DB 는 지우지 않는다.
+
 | 절 | 실험 코드 | 실행 |
 |---|---|---|
 | 7.1 배정 · key | `apps/commerce-streamer/.../interfaces/consumer/KafkaDeliveryTest` (`Assignment`) | 평소 `check` 에 포함 |
@@ -214,3 +217,20 @@ streamer 에 Connector/J `socketTimeout=10000` · `connectTimeout=3000` 을 넣�
   - commit 되지 않았다면 위 실험과 같이 기존 재시도 경로로 정상 진행한다.
 
 **결정 (D-99): commerce-api 에도 같은 timeout 을 둔다.** 장애가 서비스 전체로 번지는 것을 막는 이득이 크고, COMMIT 이 끊긴 모호한 결과는 이미 받아들인 두 한계와 같은 상태라 새 위험이 아니다. 실험 클래스의 "timeout 없음"은 이제 설정을 0(무한)으로 덮어 적용 전과 같게 만든 기준선이다.
+
+## 복제 장애: broker 3대 cluster 실험
+
+`apps/commerce-streamer/.../experiment/ReplicationExperiment` (`RUN_EXPERIMENT=true`). 로컬 · 테스트 broker 는 1대라 확인하지 못하는 `acks` · ISR 보장을 Testcontainers 로 broker 3대(`cp-kafka:7.5.3`, KRaft, 노드마다 broker 겸 controller) cluster 를 따로 띄워 확인했다. 앱 코드는 쓰지 않은 Kafka 단독 실험이다.
+
+| 장면 | leader · ISR 변화 | 결과 |
+|---|---|---|
+| follower 1대 정지 (RF 3, `min.insync.replicas=2`) | leader 1, ISR [1,2,3] → [1,3] | `acks=all` 성공 |
+| ISR 2 < `min.insync.replicas=3` (RF 3) | leader 1, ISR [1,2] | `acks=all` 은 broker 가 매번 `NOT_ENOUGH_REPLICAS` 로 거절 → 재시도 끝에 실패 · `acks=1` 은 성공 |
+| leader 정지 (RF 3, min.insync 2, `acks=all` 로 100건) | leader 1 → 2, ISR [2,3] | 확인받은 100건이 모두 새 leader 에 남음 |
+| `acks=1`, follower 가 뒤처진 동안 leader 만 20건 → leader 정지 (RF 2) | leader 2, ISR [2] → leader 3(unclean 선출) | 확인받은 21건 중 **leader 만 받은 20건이 사라짐**. 복제된 1건만 남음 |
+
+- **`acks=all` 은 "확인받은 record 는 ISR 모두에 있다"를 지킨다.** leader 가 죽어도 ISR 의 다른 replica 가 이어받아 잃지 않았다. ISR 이 `min.insync.replicas` 보다 작으면 broker 가 쓰기를 거절해, producer 는 "보냈다"고 착각하지 않고 실패를 안다. 이 앱의 producer(`retries: 3`)라면 세 번 거절된 뒤 실패 콜백 → ERROR 로그로 드러난다(D-73).
+- **`acks=1` 은 leader 하나가 썼다는 확인만 받는다.** follower 가 뒤처진 동안 leader 가 죽고 다른 replica 가 leader 가 되면, 성공으로 확인받은 record 가 사라진다. 이 장면은 unclean 선출(ISR 밖 replica 를 leader 로)이 일어나야 나타나며, KRaft 3.5 에서는 topic 설정만으로는 자동으로 일어나지 않아 Admin API(`electLeaders(UNCLEAN)`)로 요청했다. unclean 선출을 허용하지 않으면 같은 장애에서 partition 은 잃는 대신 **leader 가 없어 읽기 · 쓰기가 멈춘다**(앞선 실행에서 관찰).
+- 노드가 broker 겸 controller 라 한 번에 1대만 멈췄다(2대를 멈추면 controller quorum 이 깨져 선출 자체가 안 된다). ISR 부족은 `min.insync.replicas=3` 으로, `acks=1` 유실은 RF 2 topic 으로 만들었다.
+- 실험 producer 는 `acks` 차이만 보려고 idempotence 를 껐다. 켜면 producer ID 요청이 멈춘 broker 로 가 시간을 넘기는 일이 섞였다.
+- 확인하지 못한 것: 네트워크 분할, broker 프로세스 강제 종료(pause 만 씀), 여러 partition · 대량 트래픽에서의 동작.
