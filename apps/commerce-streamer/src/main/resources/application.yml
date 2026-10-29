@@ -29,6 +29,17 @@ demo-kafka:
   test:
     topic-name: demo.internal.topic-v1
 
+# 주문 확정 이벤트 소비 (6주차 설계 5). topic 은 인프라가 만듦 (D-90)
+order-event:
+  topic: order-events
+  consumer-group: purchase-activity
+  # 일시적 오류: pause 한 채 1s 부터 2배씩, 간격 최대 30s, 총 5분 넘으면 중단. 잠정값 (D-87)
+  retry:
+    initial-interval: 1s
+    multiplier: 2
+    max-interval: 30s
+    max-elapsed: 5m
+
 ---
 spring:
   config:
