@@ -256,8 +256,28 @@ consume(event):
   - **pause 동안에도 poll 을 계속해 group membership 이 유지된다.** rebalance 가 일어나지 않고, partition 이 다른 인스턴스로 넘어가지 않는다. 긴 대기도 `max.poll.interval.ms` 제약을 받지 않는다.
   - 상한 5분은 DB failover · 연결 끊김이 보통 수십 초에서 몇 분이고, 구매 활동은 몇 분 늦어도 업무 영향이 작다는 판단이다. 로컬 MySQL 재시작 시간을 참고값으로 잰다.
 - **상한을 넘기면 중단하는 이유:** 일시적 오류로 잘못 분류된 버그나 사람이 고쳐야 하는 환경 문제(테이블 없음, 권한)는 기다려도 성공하지 않는다. 무제한이면 컨테이너는 살아 있고 lag 만 쌓이는 조용한 정지가 된다. 중단해도 offset 은 머물러 있어 잃는 것이 없다.
-- **과제 문장과의 관계:** 과제의 error handler 확인 항목은 "실패 record 를 skip 하지 않고 중단 · 원인 표시 · 복구 후 재시작 가능"이다. 일시적 오류는 skip 하지 않고, 짧게는 스스로 회복하며, 상한 뒤에는 중단 → 원인 수정 → 재시작으로 같은 record 부터 다시 처리한다. 영구 오류의 DLT 는 중단형이 아니므로 재시도 소진 · recover(DLT 발행) · 그 뒤 offset 진행(`ackAfterHandle`)을 설명하고 테스트로 보인다.
-- **구현 위험:** Spring Kafka 에는 "재시도 소진 뒤 컨테이너 중단"을 바로 지원하는 handler 가 없다. 예외별 handler 분기(`CommonDelegatingErrorHandler` 등)와, 소진 시 commit 없이 컨테이너를 멈추는 부분을 조립해야 할 수 있다. spring-kafka 3.3 문서로 확인하고, 복잡하면 다시 판단한다.
+- **과제 문장과의 관계:** 과제의 error handler 확인 항목은 "실패 record 를 skip 하지 않고 중단 · 원인 표시 · 복구 후 재시작 가능"이다. 일시적 오류는 skip 하지 않고, 짧게는 스스로 회복하며, 상한 뒤에는 중단 → 원인 수정 → 재시작으로 같은 record 부터 다시 처리한다. 영구 오류의 DLT 는 중단형이 아니므로 재시도 소진 · recover(DLT 발행) · 그 뒤 offset 진행을 설명하고 테스트로 보인다(아래 조립의 3).
+
+#### 조립 (spring-kafka 3.3.4 소스로 확인)
+
+Spring Kafka 에는 "재시도 소진 뒤 컨테이너 중단"이 없어 `StopAfterRetriesErrorHandler` 로 조립했다.
+
+```
+DefaultErrorHandler (지수 backoff + ContainerPausingBackOffHandler, RejectedEventException 은 재시도 제외, commitRecovered=true)
+  recoverer: 영구 오류 → DeadLetterPublishingRecoverer → 정상 반환 → 복구로 보고 n+1 commit
+             일시적 오류 소진 → "소진" 표시 + 예외 → 실패 record 로 seek, commit 없음
+감싸는 handler: 소진 표시를 보면 CommonContainerStoppingErrorHandler 로 넘겨 child 컨테이너를 멈춤
+```
+
+- **버린 대안:** recoverer 에서 registry 로 비동기 중단만 요청하면, 중단이 끝나기 전에 같은 record 를 한 번 더 처리할 수 있다. `CommonDelegatingErrorHandler` 는 예외 종류로 나눌 뿐 "소진 뒤 중단"이 여전히 없다.
+- **구현하며 바로잡은 것.** 셋 모두 실패한 테스트로 드러났다.
+  1. **DLT 기본 이름은 `원래topic-dlt` 다(3.3).** 설계 · compose 의 `.DLT` 와 다르므로 목적지(`topic + ".DLT"`, 같은 partition)를 코드에 명시해 라이브러리 기본값에 기대지 않는다. 목적지가 없으면 DLT 발행이 실패해 그 record 에서 계속 다시 시도하며 partition 이 막힌다.
+  2. **재시도 중인 record 가 있으면 `handleRemaining` 이 `RecordInRetryException` 을 던진다.** 정상 반환을 가정하면 소진 확인에 닿지 않으므로, 소진일 때만 이 예외를 받아 중단으로 넘긴다.
+  3. **seek 경로에서는 컨테이너가 복구 뒤 commit 하지 않는다(`ackAfterHandle` 은 `handleOne` 경로에서만 쓰임).** `commitRecovered=true` 일 때만 복구된 record 의 n+1 을 commit 한다. 소진된 일시적 오류는 recoverer 가 예외를 던져 복구로 끝나지 않으므로 이 설정에서도 commit 되지 않는다. 강의의 "`commitRecovered=false` 하나로 결론 내지 않는다"는 경고를 반대 방향에서 확인한 셈이다.
+- **중단은 child 컨테이너에 일어난다.** 부모(`ConcurrentMessageListenerContainer`)의 `isRunning()` 은 true 로 남고 `isChildRunning()` 이 false, `isInExpectedState()` 가 false 가 된다. 운영에서는 이 값으로 이상 정지를 알아본다. 재시작은 부모를 stop 한 뒤 start 한다.
+- **pause 는 컨테이너 단위다.** `ContainerPausingBackOffHandler` 는 partition 이 아니라 컨테이너를 멈추므로, concurrency 1 에서는 대기 동안 이 listener 의 세 partition 이 모두 기다린다.
+- error handler 는 bean 으로 두지 않는다. `CommonErrorHandler` bean 이 하나면 Boot 의 기본 listener factory 에도 붙는다.
+- DLT 전송은 전용 `KafkaTemplate<String, byte[]>` 로 한다. 공용 producer 의 `JsonSerializer` 는 받은 바이트를 JSON 문자열로 다시 감싼다.
 
 | 버린 대안 | 포기한 이유 |
 |---|---|
@@ -408,10 +428,11 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 - **영구 오류는 streamer `support/error` 의 `RejectedEventException` 하나와 사유 `RejectReason` 으로 표현한다.** 5.2 의 분류는 이 예외 하나만 영구 오류로 본다. 사유마다 예외를 두면 분류 목록에서 하나를 빠뜨렸을 때 그 오류가 일시적 오류로 가서 소비가 멈춘다.
 - **저장 TX 와 재판정 TX 는 `PurchaseActivityFacade`(TX 없음)가 `PurchaseActivityService` 의 `record` · `judge` 를 따로 불러 나눈다.** 서비스 하나만 협력하므로 api 의 Steps 는 두지 않았다. 판정은 처리 기록 엔티티와 서비스가 한다.
 
+- **error handler 는 5.2 의 조립(감싸는 handler)으로 한다. listener · factory 설정은 `interfaces/consumer` 에 둔다. group 은 `purchase-activity` 다.**
+
 ### 남은 것
 
-- 5.2 error handler 조립 방식(구현 위험 참고).
-- group 이름.
+- 없음. 측정으로 다시 정할 잠정값: `max.block.ms` 1s(D-75), 재시도 상한 5분(D-87).
 
 ## 12. 결정 요약
 
