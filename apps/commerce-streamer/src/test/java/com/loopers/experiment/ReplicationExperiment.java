@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>노드마다 broker 겸 controller(KRaft). 2대를 함께 멈추면 controller quorum 이 깨지므로 한 번에 1대만 멈춤</li>
  *   <li>broker 정지는 docker pause. 빨리 ISR 에서 빠지도록 replica.lag.time.max.ms=5s</li>
  *   <li>ISR 부족은 min.insync.replicas=3 으로, acks=1 의 유실은 replication factor 2 topic 에서 만듦</li>
+ *   <li>acks=0 은 broker 가 확실히 거절하는 크기 초과 record 로 확인함</li>
  * </ul>
  * 실행: RUN_EXPERIMENT=true ./gradlew :apps:commerce-streamer:test --tests '*ReplicationExperiment'
  */
@@ -136,10 +138,15 @@ class ReplicationExperiment {
     }
 
     private static void createTopic(String topic, int replicas, int minInsync, boolean unclean) throws Exception {
+        createTopic(topic, replicas, minInsync, unclean, Map.of());
+    }
+
+    private static void createTopic(String topic, int replicas, int minInsync, boolean unclean, Map<String, String> extra) throws Exception {
         try (AdminClient admin = admin()) {
-            NewTopic newTopic = new NewTopic(topic, 1, (short) replicas).configs(Map.of(
-                "min.insync.replicas", String.valueOf(minInsync),
-                "unclean.leader.election.enable", String.valueOf(unclean)));
+            Map<String, String> configs = new HashMap<>(extra);
+            configs.put("min.insync.replicas", String.valueOf(minInsync));
+            configs.put("unclean.leader.election.enable", String.valueOf(unclean));
+            NewTopic newTopic = new NewTopic(topic, 1, (short) replicas).configs(configs);
             admin.createTopics(List.of(newTopic)).all().get(20, TimeUnit.SECONDS);
         }
         // metadata 가 퍼질 때까지 기다림. 만든 직후 조회하면 아직 모르는 topic 으로 답함
@@ -328,14 +335,50 @@ class ReplicationExperiment {
     @DisplayName("acks=1 은 follower 가 뒤처진 동안 leader 만 쓴 record 를, leader 장애 뒤 다른 replica 가 leader 가 되면 잃을 수 있다")
     @Test
     void acksOneLosesRecordsOnUncleanFailover() throws Exception {
-        // RF 2: leader 와 follower 하나. 세 번째 broker 는 controller quorum 만 지킴
-        String topic = "repl-acks1-loss";
-        createTopic(topic, 2, 1, true);
+        recordLossOnUncleanFailover("repl-acks1-loss", "1", 1);
+    }
+
+    @DisplayName("acks=all 이어도 min.insync=1 이면 ISR 이 leader 하나일 때 받아들인 record 를 leader 장애 뒤 잃을 수 있다")
+    @Test
+    void acksAllWithMinInsyncOneLosesRecordsOnUncleanFailover() throws Exception {
+        recordLossOnUncleanFailover("repl-all-min1-loss", "all", 1);
+    }
+
+    @DisplayName("acks=0 은 broker 가 크기 초과로 거절한 record 도 성공으로 알고, acks=1 은 실패를 안다")
+    @Test
+    void acksZeroCannotSeeBrokerRejection() throws Exception {
+        String topic = "repl-acks0-too-large";
+        createTopic(topic, 3, 2, false, Map.of("max.message.bytes", "1024"));
+        // 2KB 는 producer 의 max.request.size(1MB) 안이라 클라이언트는 그대로 보내고 broker 만 거절함
+        String large = "x".repeat(2048);
+        String one;
+        String zero;
+        try (KafkaProducer<String, String> producer = producer("1")) {
+            one = send(producer, topic, "one-" + large);
+        }
+        try (KafkaProducer<String, String> producer = producer("0")) {
+            zero = send(producer, topic, "zero-" + large);
+            producer.flush();
+        }
+        Set<String> read = readAll(topic);
+        record("| 크기 초과 record (topic max.message.bytes 1KB, 2KB 전송) | " + describe(partitionOf(topic))
+            + " | acks=1: " + one + " · acks=0: " + zero + " · topic 에 저장된 record " + read.size() + "건 |");
+        assertThat(one).startsWith("실패");
+        assertThat(zero).startsWith("성공");
+        assertThat(read).isEmpty();
+    }
+
+    /**
+     * RF 2: leader 와 follower 하나. 세 번째 broker 는 controller quorum 만 지킴.
+     * follower 를 멈춰 ISR 을 leader 하나로 줄인 뒤 20건을 보내고, leader 를 멈춰 뒤처진 follower 를 leader 로 세움
+     */
+    private void recordLossOnUncleanFailover(String topic, String acks, int minInsync) throws Exception {
+        createTopic(topic, 2, minInsync, true);
         TopicPartitionInfo before = partitionOf(topic);
         int leader = before.leader().id();
         int follower = before.replicas().stream().map(Node::id).filter(id -> id != leader).findFirst().orElseThrow();
         Set<String> acked = new HashSet<>();
-        try (KafkaProducer<String, String> producer = producer("1")) {
+        try (KafkaProducer<String, String> producer = producer(acks)) {
             if (send(producer, topic, "replicated").startsWith("성공")) {
                 acked.add("replicated");
             }
@@ -378,8 +421,9 @@ class ReplicationExperiment {
             unpause(broker(leader));
         }
         long lost = acked.stream().filter(value -> !read.contains(value)).count();
-        record("| acks=1, follower 뒤처진 동안 leader 만 20건 → leader 정지 (RF 2, unclean 허용) | " + isrBeforeFailover + " → " + after
-            + " (" + election + ") | " + (read.isEmpty() && !after.contains("leader=" + follower)
+        record("| acks=" + acks + ", min.insync " + minInsync + ", follower 뒤처진 동안 leader 만 20건 → leader 정지 (RF 2, unclean 허용) | "
+            + isrBeforeFailover + " → " + after + " (" + election + ") | "
+            + (read.isEmpty() && !after.contains("leader=" + follower)
                 ? "새 leader 없음 → partition 을 읽을 수 없음(유실 판단 불가)"
                 : "확인받은 " + acked.size() + "건 중 새 leader 에서 사라진 " + lost + "건") + " |");
     }
