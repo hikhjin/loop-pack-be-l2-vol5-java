@@ -236,6 +236,21 @@ class OrderConfirmedPublicationTest {
             assertThat(recordsSince(before)).isEmpty();
         }
 
+        @DisplayName("이전 POINT 확정 주문은 소급 발행하지 않는다. (D-70)")
+        @Test
+        void doesNotPublish_whenConfirmedWithPoint() {
+            // arrange
+            Order order = persistDraft(persistProduct(1_000L));
+            Map<TopicPartition, Long> before = endOffsets();
+
+            // act
+            transactionTemplate.executeWithoutResult(status ->
+                entityManager.find(Order.class, order.getId()).confirmWithPoint(1_000L, ZonedDateTime.now()));
+
+            // assert
+            assertThat(recordsSince(before)).isEmpty();
+        }
+
         @DisplayName("확정한 트랜잭션이 rollback 되면 보내지 않는다.")
         @Test
         void doesNotPublish_whenRolledBack() {

@@ -90,13 +90,15 @@ class OrderConfirmedPublishFailureTest {
             entityManager.createNativeQuery("select status from orders where id = " + order.getId()).getSingleResult());
     }
 
-    @DisplayName("broker 가 전송을 실패로 끝내도, 주문은 확정된 채 응답하고 실패를 eventId 와 함께 기록한다.")
+    @DisplayName("broker 가 전송을 실패로 끝내도, 주문은 확정된 채 응답하고 PG 를 다시 부르지 않으며 실패를 eventId 와 함께 기록한다.")
     @Test
     void keepsConfirmed_whenSendFails(CapturedOutput output) {
         // arrange
         doReturn(CompletableFuture.failedFuture(new KafkaException("주입한 전송 실패")))
             .when(kafkaTemplate).send(anyString(), any(), any());
 
+        int createsBefore = pg.createCount();
+
         // act
         OrderInfo result = orderPaymentFacade.reconcile(USER_ID, order.getId());
 
@@ -104,16 +106,20 @@ class OrderConfirmedPublishFailureTest {
         assertAll(
             () -> assertThat(result.status()).isEqualTo("CONFIRMED"),
             () -> assertThat(orderStatus()).isEqualTo("CONFIRMED"),
+            // 발행 실패를 결제 실패로 다루지 않아 PG 생성을 다시 보내지 않음 (D-60)
+            () -> assertThat(pg.createCount()).isEqualTo(createsBefore),
             () -> assertThat(output).contains("주문 확정 이벤트 발행 실패. eventId=order-confirmed:v1:" + order.getId())
         );
     }
 
-    @DisplayName("send 호출 자체가 예외를 던져도, 주문은 확정된 채 응답하고 실패를 기록한다.")
+    @DisplayName("send 호출 자체가 예외를 던져도, 주문은 확정된 채 응답하고 PG 를 다시 부르지 않으며 실패를 기록한다.")
     @Test
     void keepsConfirmed_whenSendThrows(CapturedOutput output) {
         // arrange
         doThrow(new KafkaException("주입한 send 예외")).when(kafkaTemplate).send(anyString(), any(), any());
 
+        int createsBefore = pg.createCount();
+
         // act
         OrderInfo result = orderPaymentFacade.reconcile(USER_ID, order.getId());
 
@@ -121,6 +127,8 @@ class OrderConfirmedPublishFailureTest {
         assertAll(
             () -> assertThat(result.status()).isEqualTo("CONFIRMED"),
             () -> assertThat(orderStatus()).isEqualTo("CONFIRMED"),
+            // 발행 실패를 결제 실패로 다루지 않아 PG 생성을 다시 보내지 않음 (D-60)
+            () -> assertThat(pg.createCount()).isEqualTo(createsBefore),
             () -> assertThat(output).contains("주문 확정 이벤트 발행 실패. eventId=order-confirmed:v1:" + order.getId())
         );
     }
