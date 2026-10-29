@@ -182,7 +182,7 @@ TX A 또는 TX B
   - leader 가 죽었을 때 `acks=all` 로 확인받은 record 가 새 leader 에 남는가
   - ISR 이 `min.insync.replicas` 보다 작아지면 쓰기가 거절되는가(거절돼야 producer 가 실패를 알고 로그를 남긴다)
   - `acks=1` 이면 같은 장애에서 확인받은 record 를 실제로 잃을 수 있는가
-- 위 세 가지는 broker 3대 cluster 실험으로 따로 확인했다(실험 문서 "복제 장애" 절). `acks=all` 로 확인받은 100건은 leader 장애 뒤에도 모두 남았고, ISR 이 `min.insync.replicas` 보다 작으면 broker 가 `NOT_ENOUGH_REPLICAS` 로 거절했다. `acks=1` 은 follower 가 뒤처진 동안 leader 만 받은 20건을 unclean 선출 뒤 잃었다.
+- 위 세 가지는 broker 3대 cluster 실험으로 따로 확인했다(실험 문서 "복제 장애" 절). `acks=all` 로 확인받은 100건은 leader 장애 뒤에도 모두 남았고, ISR 이 `min.insync.replicas` 보다 작으면 broker 가 `NOT_ENOUGH_REPLICAS` 로 거절했다. `acks=1` 은 follower 가 뒤처진 동안 leader 만 받은 20건을 unclean 선출 뒤 잃었다. `acks=all` 이어도 `min.insync.replicas=1` 이면 같은 장면에서 20건을 잃었고, `acks=0` 은 broker 가 크기 초과로 거절한 record 도 성공으로 알았다. 표의 "잃을 수 있는 경우"는 세 행 모두 실측으로 확인됐다.
 - 운영 topic 은 replication factor 3 · `min.insync.replicas=2` 를 전제로 한다. 이번 compose 는 broker 1대라 둘 다 1 이다.
 
 ### 3.6 남는 누락 구간

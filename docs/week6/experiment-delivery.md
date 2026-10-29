@@ -228,9 +228,14 @@ streamer 에 Connector/J `socketTimeout=10000` · `connectTimeout=3000` 을 넣�
 | ISR 2 < `min.insync.replicas=3` (RF 3) | leader 1, ISR [1,2] | `acks=all` 은 broker 가 매번 `NOT_ENOUGH_REPLICAS` 로 거절 → 재시도 끝에 실패 · `acks=1` 은 성공 |
 | leader 정지 (RF 3, min.insync 2, `acks=all` 로 100건) | leader 1 → 2, ISR [2,3] | 확인받은 100건이 모두 새 leader 에 남음 |
 | `acks=1`, follower 가 뒤처진 동안 leader 만 20건 → leader 정지 (RF 2) | leader 2, ISR [2] → leader 3(unclean 선출) | 확인받은 21건 중 **leader 만 받은 20건이 사라짐**. 복제된 1건만 남음 |
+| `acks=all` 이지만 `min.insync.replicas=1`, 나머지는 위와 같음 (RF 2) | leader 1, ISR [1] → leader 2 | 확인받은 21건 중 **20건이 사라짐**. `acks=1` 과 같은 결과 |
+| 크기 초과 record (topic `max.message.bytes` 1KB, 2KB 전송, RF 3) | leader 2, ISR [1,2,3] | `acks=1` 은 `RecordTooLargeException` 실패 · **`acks=0` 은 성공(offset -1)**, topic 에 저장된 record 0건 |
 
 - **`acks=all` 은 "확인받은 record 는 ISR 모두에 있다"를 지킨다.** leader 가 죽어도 ISR 의 다른 replica 가 이어받아 잃지 않았다. ISR 이 `min.insync.replicas` 보다 작으면 broker 가 쓰기를 거절해, producer 는 "보냈다"고 착각하지 않고 실패를 안다. 이 앱의 producer(`retries: 3`)라면 세 번 거절된 뒤 실패 콜백 → ERROR 로그로 드러난다(D-73).
+- **`acks=all` 의 보장은 `min.insync.replicas` 가 만든다.** `acks=all` 은 "그 순간 ISR 모두"의 확인이라, `min.insync.replicas=1` 이면 ISR 이 leader 하나로 줄어도 쓰기를 받아들인다. 그 상태에서 leader 가 죽자 `acks=1` 과 똑같이 20건을 잃었다. 같은 장면에서 `min.insync.replicas` 가 ISR 보다 크면 broker 가 쓰기를 거절해(위 ISR 부족 행) 유실 대신 실패로 드러난다.
+- **`acks=0` 은 broker 의 거절도 보지 못한다.** 응답을 기다리지 않으므로 offset 을 모른 채(-1) 성공으로 끝났고, 같은 record 를 `acks=1` 로 보내면 broker 가 크기 초과로 거절한 것을 실패로 받았다. 크기 초과를 고른 이유: `min.insync.replicas` 는 `acks=all` 일 때만 검사해 ISR 부족으로는 acks=0 의 차이가 드러나지 않고, leader 정지는 선출 · metadata 갱신 시점이 섞여 결과가 흔들린다. producer 의 `max.request.size`(1MB) 안이라 클라이언트가 막지 않고 broker 만 거절한다.
 - **`acks=1` 은 leader 하나가 썼다는 확인만 받는다.** follower 가 뒤처진 동안 leader 가 죽고 다른 replica 가 leader 가 되면, 성공으로 확인받은 record 가 사라진다. 이 장면은 unclean 선출(ISR 밖 replica 를 leader 로)이 일어나야 나타나며, KRaft 3.5 에서는 topic 설정만으로는 자동으로 일어나지 않아 Admin API(`electLeaders(UNCLEAN)`)로 요청했다. unclean 선출을 허용하지 않으면 같은 장애에서 partition 은 잃는 대신 **leader 가 없어 읽기 · 쓰기가 멈춘다**(앞선 실행에서 관찰).
+- 두 번째 실행(2026-10-30, acks=0 · min.insync=1 장면 추가)에서 ISR 부족 행의 `acks=all` 은 `TimeoutException` 으로 끝났다. broker 의 `NOT_ENOUGH_REPLICAS` 거절을 producer 가 재시도하다 `delivery.timeout.ms`(20초)를 넘긴 것으로, 첫 실행과 같은 결과다. 두 유실 장면의 선출 요청은 `ElectionNotNeededException` 으로 끝났다. 요청 시점에 controller 가 이미 뒤처진 follower 를 leader 로 세운 것이며, 이 실행만으로는 topic 의 unclean 허용으로 자동 선출됐는지 앞선 요청이 반영됐는지 구분되지 않는다.
 - 노드가 broker 겸 controller 라 한 번에 1대만 멈췄다(2대를 멈추면 controller quorum 이 깨져 선출 자체가 안 된다). ISR 부족은 `min.insync.replicas=3` 으로, `acks=1` 유실은 RF 2 topic 으로 만들었다.
 - 실험 producer 는 `acks` 차이만 보려고 idempotence 를 껐다. 켜면 producer ID 요청이 멈춘 broker 로 가 시간을 넘기는 일이 섞였다.
 - 확인하지 못한 것: 네트워크 분할, broker 프로세스 강제 종료(pause 만 씀), 여러 partition · 대량 트래픽에서의 동작.
