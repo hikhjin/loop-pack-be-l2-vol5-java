@@ -147,3 +147,37 @@ low-level `KafkaConsumer`(자동 commit 꺼짐) 로 실제 parser · `PurchaseAc
 
 - 로컬의 빈 DB 재시작은 3초 안쪽이다. 지금 상한(5분)은 이보다 100배 이상 길다.
 - 다만 이 값은 데이터 · 커넥션 · 복제가 없는 로컬 재시작이다. 운영의 managed DB failover(복제본 승격, DNS · 엔드포인트 전환)는 수십 초에서 몇 분이 걸릴 수 있어 이 측정이 대표하지 않는다. 상한을 바꿀지는 결정 대상으로 남긴다.
+
+## 재시도 상한(D-87): 실제 DB 장애 실험
+
+`apps/commerce-streamer/.../experiment/DatabaseOutageExperiment` (`RUN_EXPERIMENT=true`). 구매 활동 listener 가 소비하는 동안 Testcontainers MySQL 에 장애를 만들었다. backoff 는 운영값(1s, ×2, 최대 30s), 상한만 60s 로 줄였다.
+
+- **응답 없음:** `docker pause`. **연결 거부 · 끊김:** MySQL `offline_mode`(관리자 외 세션을 끊고 새 접속 거부). 컨테이너 재시작은 쓰지 않았다. Docker 가 무작위 호스트 포트를 재시작마다 새로 배정해(55102 → 55103 → 55104 로 확인) 앱이 옛 주소로 붙기 때문이다.
+
+| 장면 | 장애 유지 | 정지 | 시도 시각 (장애 시작 기준, s) | 예외 | 복구 뒤 commit 까지 | DLT | 활동 |
+|---|---|---|---|---|---|---|---|
+| 응답 없음 20초 | 20s | — | 0.5, 11.5, 22.2(성공) | `CannotCreateTransactionException` | 2.3s | 0 | 1 |
+| 연결 거부 20초 | 20s | — | 0.0, 1.0, 6.1, 13.1, 24.1(성공) | 〃 | 4.2s | 0 | 1 |
+| 연결 거부, 멈출 때까지 | 79s | **중단** | 0.0, 1.0, 6.0, 13.1, 24.1, 43.2, 76.2 → 재시작 뒤 79.7(성공) | 〃 | 1.2s | 0 | 1 |
+| 응답 없음, 최대 400초 | 400s | **안 멈춤** | 0.0 (400초 동안 돌아오지 않음) → 복구 뒤 401.3(성공) | — | 1.3s | 0 | 1 |
+
+- **DB 오류는 일시적 오류로 분류됐다.** 네 장면 모두 DLT 로 간 record 가 없고, 회복 뒤 구매 활동이 한 번 저장됐다. DB 장애 동안의 주문이 DLT 로 빠지지 않는다.
+- **상한(`maxElapsedTime`)은 벽시계 시간이 아니다.** Spring `ExponentialBackOff` 는 `currentElapsedTime += nextInterval` 로 backoff 간격의 합만 센다(spring-core 6.2.5 소스). 시도 자체에 걸린 시간(커넥션 획득 대기 3s 등)은 더해지지 않아, 간격 합 60s 일 때 연결 거부 장애에서 실제로 멈추기까지 79초가 걸렸다. 운영 설정(간격 합 5분)이면 연결 거부 장애에서 실제 중단은 5분보다 늦다.
+- **응답 없는 DB 에서는 상한이 동작하지 않는다.** listener 스레드가 DB 호출 안에서 예외 없이 기다려 재시도 자체가 일어나지 않았다(JDBC socket timeout 없음). 약 300초에 `max.poll.interval.ms`(기본 5분)를 넘겨 group 에서 빠지고 rebalance 가 일어났다. 인스턴스가 여럿이면 partition 을 넘겨받은 쪽도 같은 DB 에서 같은 일을 겪는다. DB 가 돌아오자 호출이 끝나 같은 record 를 다시 처리했다.
+
+### 운영 DB failover 문헌값 (참고)
+
+| DB | 문서에 나온 failover 시간 |
+|---|---|
+| Amazon RDS Multi-AZ DB instance | 보통 60~120초. 큰 트랜잭션 · 긴 복구면 더 길어짐 |
+| Amazon RDS Multi-AZ DB cluster | 보통 35초 미만 |
+| Amazon Aurora | 복제본이 있으면 보통 30초 안팎(API 문서는 35초 미만) |
+| Google Cloud SQL for MySQL HA | 커넥션 재수립까지 약 60초. 다른 문서는 "몇 분" |
+
+- failover 는 DNS 를 바꾸므로 클라이언트가 다시 접속해야 한다. AWS 는 Java 클라이언트의 DNS 캐시 TTL 을 60초 이하로 두라고 권한다. 그 시간만큼 회복이 더 늦어질 수 있다.
+- 출처: [RDS Multi-AZ DB instance failover](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.Failover.html), [RDS Multi-AZ DB cluster failover](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts-failover.html), [Aurora 가용성 FAQ](https://docs.aws.amazon.com/rds/latest/auroraextendedcontent/aurora-faq-availability-and-durability.html), [Aurora FailoverDBCluster](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_FailoverDBCluster.html), [Cloud SQL for MySQL 고가용성](https://docs.cloud.google.com/sql/docs/mysql/high-availability), [Cloud SQL HA 설정](https://docs.cloud.google.com/sql/docs/mysql/configure-ha). 2026-10-29 조회. 문서 갱신 시기가 서로 달라 수치는 바뀔 수 있다.
+
+### 상한에 대한 해석
+
+- 문헌값으로 보면 감당할 장애는 대략 2분 안쪽(RDS instance 최대 120초)이고, DNS TTL 을 더해도 3분 안팎이다. 지금 상한(간격 합 5분, 연결 거부 장애에서 실제 중단은 5분 남짓 + 시도 시간)은 이를 덮는다.
+- 다만 **응답 없는 장애에서는 상한이 아니라 JDBC 의 timeout 이 없다는 점이 실제 한계**다. 상한을 어떻게 정해도 이 경우에는 동작하지 않는다.
