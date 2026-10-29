@@ -89,19 +89,19 @@
 **`@TransactionalEventListener(phase = AFTER_COMMIT)` 에서 Kafka 로 보낸다.**
 
 ```
-TX A 또는 TX B (Steps)
- → 최초 확정이 일어났으면 애플리케이션 이벤트 발행
+TX A 또는 TX B
+ → OrderService.confirmPaid / confirmWithoutPayment 가 최초 확정을 하고 OrderConfirmed 애플리케이션 이벤트를 냄
      payload(eventId, orderId, confirmedAt, items)를 TX 안에서 record 로 복사
  commit
- ── AFTER_COMMIT listener ──
- → Kafka send (key = orderId)
+ ── AFTER_COMMIT listener (application/order/listener) ──
+ → OrderEventPublisher 포트 → Kafka 구현이 send (key = orderId)
  → future 완료 콜백에서 결과 로그 (3.4)
 ```
 
-- **발행 책임을 상태 전이 옆에 둔다.** 확정 지점이 두 곳(TX A · TX B)이고 Facade 경로는 세 곳(confirm · reconcile · callback)이다. Facade 에 두면 발행이 경로마다 흩어지고, Steps 를 다른 곳에서 부르면 빠진다.
+- **발행 책임을 상태 전이 옆에 둔다.** 확정 지점이 두 곳(TX A · TX B)이고 Facade 경로는 세 곳(confirm · reconcile · callback)이다. Facade 에 두면 발행이 경로마다 흩어진다. 이벤트를 `OrderService` 확정 메서드가 내므로 다른 경로에서 불러도 빠지지 않는다(11장).
 - **payload 는 TX 안에서 복사한다.** `Order.items` 는 LAZY 라 commit 뒤 영속성 컨텍스트가 닫힌 상태에서 읽으면 실패할 수 있다.
 - **commit 전에 보내지 않는다.** 보낸 뒤 rollback 되면 확정되지 않은 주문의 이벤트가 남는다. 같은 메서드의 `@Transactional` 코드 끝에서 send 해도 아직 commit 된 것이 아니다.
-- **트랜잭션 없이 부르면 listener 가 실행되지 않는다.** 발행은 `@Transactional` Steps 안에서만 일어나므로 지금은 문제가 없고, 이 전제를 테스트로 고정한다.
+- **트랜잭션 없이 부르면 listener 가 실행되지 않는다.** 이벤트를 내는 확정 메서드가 `@Transactional` 이라 지금은 문제가 없고, 이 전제(트랜잭션 밖 · rollback 이면 포트가 불리지 않음)를 `OrderConfirmedListenerTest` 로 고정했다.
 
 | 버린 대안 | 얻을 수 있던 것 | 포기한 이유 |
 |---|---|---|
@@ -115,7 +115,7 @@ TX A 또는 TX B (Steps)
   - 콜백은 producer I/O 스레드에서 실행되므로 로그 외의 무거운 일을 하지 않는다.
 - **send 실패는 주문을 되돌리지 않는다.** 주문 상태는 저장된 결과로 답하고, PG create 도 다시 부르지 않는다. 발행 실패는 API 응답이 아니라 로그로 드러낸다.
 - **발행 실패를 DB 에 기록하거나 다시 보내지 않는다.** 그 일은 7주차 Outbox 가 맡는다.
-- AFTER_COMMIT listener 의 예외는 호출자에게 전파되지 않는다. 이미 commit 된 확정에 500 을 주지 않으므로 이번 정책과 맞는다. 실제 동작은 실패 주입 테스트로 확인한다.
+- AFTER_COMMIT listener 의 예외는 호출자에게 전파되지 않는다. 이미 commit 된 확정에 500 을 주지 않으므로 이번 정책과 맞는다. Kafka 구현은 send 예외를 스스로 잡지만, 포트 자체가 예외를 던져도 reconcile 이 정상 응답하는지를 `OrderConfirmedListenerTest` 로 확인했다.
 
 | 버린 대안 | 얻을 수 있던 것 | 포기한 이유 |
 |---|---|---|
@@ -128,7 +128,7 @@ TX A 또는 TX B (Steps)
 |---|---|---|---|
 | `max.block.ms` | **500** (잠정 1000 에서 측정 뒤 조정) | commerce-api | `send()` 는 비동기지만 metadata 를 못 받으면 이 시간만큼 호출 스레드가 막힌다. AFTER_COMMIT 은 요청 스레드에서, 커넥션 반납 전에 실행되므로 이 값이 broker 장애 때 API 응답과 DB 커넥션이 묶이는 최대 시간이다(측정으로 확인). 기본 60s 는 Tomcat 스레드와 커넥션 풀을 묶어 다른 API 까지 멈춘다. 아래 측정 근거로 정했다 |
 | `retries` | 3 (유지) | 공용 `kafka.yml` | 짧은 재시도 안에 결과를 확정해 실패 로그가 빨리 남는다. idempotent producer 라 재시도로 broker 에 중복이 생기지 않는다 |
-| `acks` | 클라이언트 기본값 `all` | — | 단일 broker(복제 1)라 복제 장애 내구성은 확인하지 못한다 (8장) |
+| `acks` | 클라이언트 기본값 `all` | — | 설정하지 않아 kafka-clients 3.8 기본값을 쓴다. 테스트 로그의 `Instantiated an idempotent producer` 가 근거다(idempotence 는 `acks=all` 에서만 켜진다). 단일 broker(복제 1)라 복제 장애 내구성은 확인하지 못한다 (8장) |
 
 - **commerce-api 에만 해당하는 값은 commerce-api 설정에 둔다.** 1s 의 근거가 commerce-api 의 응답 시간 예산이기 때문이다. 직렬화기처럼 모든 producer 에 공통인 값은 공용에 남긴다.
 - **설정 우선순위 주의:** `spring.config.import` 로 불러온 `kafka.yml` 의 값이 commerce-api `application.yml` 의 값보다 우선한다. `kafka.yml` 에 이미 있는 키는 commerce-api 에서 덮어쓸 수 없다. 실제 producer 에 적용된 값을 테스트로 확인한다.
@@ -236,7 +236,7 @@ consume(event):
 | ack mode | `MANUAL_IMMEDIATE` | handler 의 DB commit 뒤 consumer 스레드에서 `acknowledge()` 를 부르는 즉시 offset 을 commit 한다. DB commit → offset commit 순서(at-least-once)를 record 단위로 맞춘다 |
 | `enable.auto.commit` | `false` (실제 `ConsumerConfig` 값으로 확인) | 받은 시점에 offset 이 넘어가면 DB 저장 전에 멈췄을 때 누락된다 |
 | concurrency | **1** | record 단위 DB 경계 · ack · 실패 흐름을 관찰하기 쉽다. 처리량이 부족하면 partition 수(3) 안에서 늘린다 |
-| group | `purchase-activity` (예시, 구현 때 확정) | |
+| group | `purchase-activity` (설정 `order-event.consumer-group`) | |
 | `auto.offset.reset` | **`earliest`** (이 factory 에만) | committed offset 이 없을 때만 쓰인다(첫 배포, offset 만료, 보존 범위 이탈). `latest` 면 그때 구매 사실이 조용히 빠진다. 이미 처리한 record 는 no-op 이라 다시 읽어도 안전하다. 공용 `kafka.yml` 의 `latest` 는 그대로 둔다 |
 | fetch | Kafka 기본값 | batch factory 의 `fetch.min.bytes=1MiB` · `fetch.max.wait.ms=5s` 는 그 factory 코드에만 있어 물려받지 않는다. 건별 처리라 모을 이유가 없고, 테스트에서 메시지가 늦게 보이는 문제도 생기지 않는다 |
 | value 역직렬화 | `ByteArrayDeserializer` + 직접 파싱 | 4.2 검증을 handler 가 한다 |
@@ -256,9 +256,9 @@ consume(event):
 - **영구 오류는 우리가 정의한 예외 타입으로 명시적으로 나열하고, 나머지는 모두 일시적 오류로 본다.** 모르는 오류가 DLT 로 가서 활동이 빠지는 것보다 멈춰서 사람이 보는 편이 안전하다.
 - **DLT 로 옮긴 것은 업무 완료가 아니다.** 그 주문의 구매 활동은 빠진 상태이며, 이번 주에는 DLT 재처리를 만들지 않는다. 사람이 확인할 대상으로 남는다(8장).
 - **일시적 오류 재시도 (잠정):** backoff 1s 에서 2배씩, 간격 최대 30s, 총 상한 5분. 테스트에서는 상한을 짧게 넣도록 설정값으로 둔다.
-  - 재시도마다 WARN 로그(횟수 · 원인 · eventId · topic · partition · offset)를 남긴다.
+  - 재시도마다 WARN 로그(횟수 · 원인 · topic · partition · offset)를 남긴다. 파싱 전 실패도 있어 eventId 는 넣지 않고 record 위치로 찾는다.
   - **pause 동안에도 poll 을 계속해 group membership 이 유지된다.** rebalance 가 일어나지 않고, partition 이 다른 인스턴스로 넘어가지 않는다. 긴 대기도 `max.poll.interval.ms` 제약을 받지 않는다.
-  - 상한 5분은 DB failover · 연결 끊김이 보통 수십 초에서 몇 분이고, 구매 활동은 몇 분 늦어도 업무 영향이 작다는 판단이다. 로컬 MySQL 재시작 시간을 참고값으로 잰다.
+  - 상한 5분은 DB failover · 연결 끊김이 보통 수십 초에서 몇 분이고, 구매 활동은 몇 분 늦어도 업무 영향이 작다는 판단이다. 참고로 로컬 빈 MySQL 재시작은 2~2.7초였다(실험 문서). 운영 failover 를 대표하지 않아 상한은 잠정값으로 둔다.
 - **상한을 넘기면 중단하는 이유:** 일시적 오류로 잘못 분류된 버그나 사람이 고쳐야 하는 환경 문제(테이블 없음, 권한)는 기다려도 성공하지 않는다. 무제한이면 컨테이너는 살아 있고 lag 만 쌓이는 조용한 정지가 된다. 중단해도 offset 은 머물러 있어 잃는 것이 없다.
 - **과제 문장과의 관계:** 과제의 error handler 확인 항목은 "실패 record 를 skip 하지 않고 중단 · 원인 표시 · 복구 후 재시작 가능"이다. 일시적 오류는 skip 하지 않고, 짧게는 스스로 회복하며, 상한 뒤에는 중단 → 원인 수정 → 재시작으로 같은 record 부터 다시 처리한다. 영구 오류의 DLT 는 중단형이 아니므로 재시도 소진 · recover(DLT 발행) · 그 뒤 offset 진행을 설명하고 테스트로 보인다(아래 조립의 3).
 
@@ -384,6 +384,8 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 | `modules:kafka` testFixtures | `KafkaTestContainersConfig`, topic 도우미 신설 (10장) |
 | commerce-streamer | 구매 활동 listener · factory · error handler · handler · 엔티티 · 저장소. `application.name` 정정. 테스트 기반 신설 |
 | `docker/infra-compose.yml` | broker 자동 topic 생성 끔, topic 생성 init 단계 |
+| MySQL · Redis · Kafka test fixture | `TEST_LOCAL_INFRA=true` 면 컨테이너 대신 로컬 compose 주소를 씀(두 앱 E2E 실험용, 기본 꺼짐). Kafka fixture 에 컨테이너 접근자(broker 정지 측정용) |
+| commerce-streamer 빌드 | commerce-api 와 같은 checkstyle · ArchUnit 적용 |
 
 ## 10. 테스트
 
@@ -392,27 +394,28 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 - **`modules:kafka` 의 testFixtures 에 둔다.** jpa · redis 와 같은 패턴이다. commerce-api(발행 테스트)와 commerce-streamer(소비 테스트)가 같은 fixture 를 쓴다.
 - `KafkaTestContainersConfig`: static 으로 JVM 당 한 번 띄우고 `System.setProperty("spring.kafka.bootstrap-servers", …)` 로 주소를 넣는다. 컨테이너 내부 주소와 호스트 주소를 섞지 않는다. broker 자동 topic 생성을 끈다.
 - **topic 도우미:** 기존 `DatabaseCleanUp` 처럼 전부 지우지 않는다. Kafka topic 삭제는 비동기라 지운 직후 같은 이름으로 다시 만들면 실패할 수 있다. 고유 suffix 이름을 만들고, partition 수를 지정해 topic 을 만들고, 그 테스트가 만든 topic 만 지운다.
-- **테스트 broker 는 로컬 compose 와 같은 Kafka 3.5 대로 맞춘다.** 앱이 실제로 붙고 PR 실험을 기록하는 broker 가 3.5.1 이다. 클라이언트(kafka-clients 3.8.1)는 API 버전 협상으로 더 오래된 broker 와 동작한다. 공식 `apache/kafka` 이미지는 3.7.0 부터라 `confluentinc/cp-kafka:7.5.x`(Kafka 3.5 포함)를 후보로 두고, 구현 때 실제 버전을 확인한다.
+- **테스트 broker 는 로컬 compose 와 같은 Kafka 3.5 대로 맞춘다.** 앱이 실제로 붙고 PR 실험을 기록하는 broker 가 3.5.1 이다. 클라이언트(kafka-clients 3.8.1)는 API 버전 협상으로 더 오래된 broker 와 동작한다. 공식 `apache/kafka` 이미지는 3.7.0 부터라 `confluentinc/cp-kafka:7.5.3` 을 쓴다. 이미지 버전 문자열은 `7.5.3-ccs` 라, 안의 jar 가 지원하는 가장 높은 메타데이터 버전(`IBP_3_5_IV2`)으로 Kafka 3.5 임을 확인했다.
 
 ### 10.2 장면
 
-| 장면 | 핵심 기대 결과 | 위치 (가칭) |
+| 장면 | 핵심 기대 결과 | 위치 |
 |---|---|---|
-| PG 확정 → Kafka → streamer | 저장된 품목 · 수량 · confirmedAt 과 같은 구매 활동 | 통합 (api + 실제 broker) · `PurchaseActivityIntegrationTest` |
-| 0원 주문 확정 | 이벤트 발행, 구매 활동 저장 | `OrderConfirmedPublicationTest` |
-| 대기 · UNKNOWN · 실패 · 확정 rollback | `OrderConfirmed` 발행 없음 | 〃 |
+| PG 확정 → Kafka → streamer (두 앱) | 저장된 품목 · 수량 · confirmedAt 과 같은 구매 활동 | api `OrderConfirmedEndToEndExperiment` (로컬 compose, 실험 문서 7.2) |
+| PG SUCCESS · 0원 주문 확정 | 주문 key 로 DB 사실과 같은 record 하나 | api `OrderConfirmedPublicationTest` |
+| 대기 · UNKNOWN · 실패 · 확정 rollback · 이전 POINT 확정 | `OrderConfirmed` 발행 없음 | 〃 |
 | 중복 callback · reconcile | 새 이벤트 · 추가 재고 차감 없음 | 〃 |
-| confirmedAt 저장 | 마이크로초로 잘림, payload = DB 값, 중복 callback 이 바꾸지 못함 | 〃 · 단위 |
-| send 실패 주입 | 주문 상태 그대로, ERROR 로그 | 〃 |
-| 같은 record 재전달 | 구매 효과 한 번 | `KafkaDeliveryTest` (7.3) |
-| 같은 ID 의 payload 충돌 · 같은 주문 다른 eventId | 추가 효과 없이 충돌, DLT | `PurchaseActivityIntegrationTest` · 7.4 |
-| 파싱 검증 (4.2 각 항목) | 거절, DLT | 단위 · 통합 |
-| 동시 중복 소비 | 유일 제약으로 한 번만 저장, 재판정으로 no-op | `PurchaseActivityIntegrationTest` |
-| 품목 저장 중 실패 | 처리 기록 · 앞선 품목 전체 rollback | 〃 |
-| listener 실패 경로 | 7.4 | `KafkaDeliveryTest` |
-| partition · group 배정 | 7.1 | 〃 |
-| commit 후 발행 공백 | 확정 주문은 남고 활동 누락 (7.2) | `OrderConfirmedPublicationTest` |
-| 유효 설정 | `enable.auto.commit=false`, deserializer, `max.block.ms`, `auto.offset.reset=earliest` 가 실제 config 에 적용됨 | 각 앱 |
+| confirmedAt 저장 | 마이크로초로 잘림, payload = DB 값, 중복 callback 이 바꾸지 못함 | `OrderTest` · `OrderRepositoryIntegrationTest` · `OrderConfirmedPublicationTest` |
+| 확정 사실을 내는 조건 | 최초 확정 두 경로에서만 한 번 | `OrderServiceTest` |
+| listener 실행 조건 | commit 뒤에만 포트 호출, 트랜잭션 밖 · rollback 이면 호출 없음, 포트 예외가 응답으로 번지지 않음 | api `OrderConfirmedListenerTest` |
+| send 실패 주입 | 주문 상태 그대로, PG create 추가 없음, ERROR 로그 | api `OrderConfirmedPublishFailureTest` |
+| commit 후 발행 공백 | 확정 · 예약 소비는 남고 broker record 없음 (7.2) | api `OrderConfirmedPublicationGapTest` |
+| 메시지 계약 | 필드 · UTC 마이크로초 6자리 | api `OrderConfirmedMessageTest` |
+| 파싱 검증 (4.2 각 항목) | 사유와 함께 거절 | streamer `OrderConfirmedParserTest` · `OrderConfirmationTest` |
+| 저장 · 같은 사실 · 충돌 · 품목 저장 중 실패 · 동시 중복 소비 | 4.3 · 4.4 | streamer `PurchaseActivityIntegrationTest` |
+| listener 정상 · 재전달 · DLT · 재시도 회복 · 중단 후 재시작 | 7.4 | streamer `OrderConfirmedConsumerTest` |
+| partition · group 배정, key 매핑, offset 미커밋 재전달 | 7.1 · 7.3 | streamer `KafkaDeliveryTest` |
+| 유효 설정 | `enable.auto.commit=false`, deserializer, `max.block.ms`, `auto.offset.reset=earliest`, ack mode, concurrency 가 실제 config 에 적용됨 | streamer `KafkaSettingsTest` · `OrderConfirmedConsumerTest`, api `OrderConfirmedPublicationTest` |
+| 계층 규칙 | 패키지 의존 규칙 | 두 앱의 `ArchitectureTest` |
 | 기존 기능 | PG · 예약 · 이전 POINT 사실 · 소유권 · 삭제 비노출 보존 | 기존 테스트 |
 
 - 테스트 0건 · skip · broker 연결 실패는 성공이 아니다.

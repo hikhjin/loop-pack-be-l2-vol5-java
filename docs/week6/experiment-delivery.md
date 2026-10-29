@@ -2,7 +2,7 @@
 
 6주차 설계 7장의 실험 기록이다. 숫자와 ID는 아래 실행일의 **한 번 실행한 관찰값**이며, 다시 실행하면 ID · offset · 시간은 달라진다.
 
-- 실행일: 2026-10-29, 로컬 Docker. broker 는 Testcontainers `cp-kafka:7.5.3`(Apache Kafka 3.5, 복제 1) 또는 로컬 compose `bitnamilegacy/kafka:3.5.1`(복제 1)
+- 실행일: 2026-10-29, 로컬 Docker. 실험 코드는 커밋 `00ac8cb` 시점(측정 표는 `max.block.ms=1000`, 이후 `89cb956` 에서 500 으로 조정). broker 는 Testcontainers `cp-kafka:7.5.3`(Apache Kafka 3.5, 복제 1) 또는 로컬 compose `bitnamilegacy/kafka:3.5.1`(복제 1)
 - **단일 broker 한계:** 복제 · ISR · `acks=all` 의 장애 내구성, broker 장애 중 leader 이동, 네트워크 분할은 시험하지 않았다. 아래 "broker 정지"는 `docker pause`(응답 없음)이며 연결 거부 · 프로세스 종료와는 다른 장애다.
 
 | 절 | 실험 코드 | 실행 |
@@ -44,12 +44,15 @@ partition 2개인 격리 topic, 같은 group. 배정은 broker 가 준 `assignme
 | providerOrderId | LP-ORD-0000000001 | LP-ORD-0000000002 |
 | transactionKey | TEST-TX-0001 | TEST-TX-0002 |
 | eventId | order-confirmed:v1:1 | order-confirmed:v1:2 |
+| confirmedAt | 2026-10-29T09:29:21.684317Z | 2026-10-29T09:29:21.732340Z |
 | items | 상품 1 × 2 | 상품 1 × 1 |
 | hook 시점(이미 commit 됨) 주문 / 예약 | CONFIRMED / CONSUMED | — |
 | 최종 주문 / 예약 | CONFIRMED / CONSUMED | CONFIRMED / CONSUMED |
 | broker record | **0건** | 1건 (`order-events` partition 2 offset 0) |
 
+- **구매 활동은 streamer 를 돌려 확인하지 않았다.** broker record 가 0건이라 소비될 대상이 없으므로 활동이 생길 수 없다는 결론이다.
 - **확정 주문은 남는데 이벤트가 없다.** commit 뒤에 보내도 DB 와 broker 는 원자적으로 묶이지 않는다. 기록도 재전송도 없어 이 주문의 구매 활동은 만들어지지 않는다. 7주차 Outbox 의 출발점이다.
+- **고정 clock 을 쓰지 않았다(한계).** 확정 시각은 서버 `Clock` bean 이 정하고, 실험은 그 bean 을 바꾸지 않아 실행마다 시각이 다르다. 고정하려면 테스트에서 `Clock` bean 을 교체해야 해 기존 테스트 컨텍스트와 갈라진다. 대신 실제 생성된 값(ID · confirmedAt · items)을 위 표에 기록하는 방식으로 재현 근거를 남겼다. 품목 · 수량은 실험 코드에 고정돼 있다.
 - 7주차에 같은 장면을 다시 만들 때는 위 ID 를 그대로 쓰지 않는다. 새 격리 실행에서 실제 생성된 주문의 ID 로 준비 → 복구를 확인한다.
 
 ### 정상 사례: 두 앱을 실제 broker 로 잇기
@@ -132,3 +135,15 @@ low-level `KafkaConsumer`(자동 commit 꺼짐) 로 실제 parser · `PurchaseAc
 - **하한 근거:** 정상 broker 에서 metadata 를 처음 받는 데 10ms 미만이었다. 1s 는 정상 첫 send 보다 100배 이상 크다.
 
 **결정: `max.block.ms` 를 1000 → 500 으로 낮췄다 (D-75).** 장애 때 응답 · 커넥션이 묶이는 시간을 반으로 줄이면서, 로컬 측정이 대표하지 못하는 운영 네트워크의 첫 연결 지연을 감당할 여유(정상 첫 send 의 50배 이상)는 남겼다. 200ms 는 Outbox 전이라 넘기면 정상 이벤트를 잃을 위험이 커져 버렸다. 위 표는 1000 일 때의 측정이다.
+
+## 참고: 재시도 상한(D-87)을 위한 MySQL 재시작 시간
+
+일시적 오류 재시도 상한(잠정 5분)의 참고값이다. 빈 `mysql:8.0` 임시 컨테이너를 재시작하고, 0.1초 간격으로 `select 1` 이 다시 성공할 때까지 잰 뒤 컨테이너를 지웠다.
+
+| 장면 | 다시 쿼리 가능해지기까지 |
+|---|---|
+| `docker restart` 1 ~ 5회 | 2.10s, 1.90s, 2.01s, 2.42s, 2.26s |
+| `docker stop` 뒤 `start` | 2.69s |
+
+- 로컬의 빈 DB 재시작은 3초 안쪽이다. 지금 상한(5분)은 이보다 100배 이상 길다.
+- 다만 이 값은 데이터 · 커넥션 · 복제가 없는 로컬 재시작이다. 운영의 managed DB failover(복제본 승격, DNS · 엔드포인트 전환)는 수십 초에서 몇 분이 걸릴 수 있어 이 측정이 대표하지 않는다. 상한을 바꿀지는 결정 대상으로 남긴다.
