@@ -370,7 +370,8 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 - **commit 뒤 발행 누락:** 확정 commit 과 send 사이, 또는 send 콜백 전에 멈추면 이벤트가 사라진다. 기록도 재전송도 없다. 7주차 Outbox 로 개선한다. Outbox 의 재전송은 at-least-once 라 중복 발행이 생기며, stable eventId 와 consumer 멱등 처리가 그 전제다.
 - **DLT 의 구매 활동 누락:** 영구 오류로 DLT 에 간 주문은 구매 활동이 없고 9주차 랭킹에서 빠진다. 재처리 경로는 범위 밖이다.
 - **소비 중단:** 일시적 오류가 상한을 넘으면 이 앱의 구매 활동 소비가 멈춘다(concurrency 1). lag 알림은 범위 밖이라 로그로만 드러난다.
-- **응답 없는 DB:** streamer 는 드라이버 timeout(D-98)으로 예외가 되어 재시도 · 상한 · 중단이 동작한다(실험 문서). **commerce-api 는 그대로**라, 응답 없는 DB 에서는 요청 스레드가 무기한 기다릴 수 있다. api 에 넣으려면 결제 TX 의 COMMIT 이 끊겼을 때의 모호성을 따로 다뤄야 한다.
+- **응답 없는 DB:** 두 앱 모두 드라이버 timeout(D-98, D-99)으로 약 20초 안에 예외가 된다. streamer 는 재시도 · 상한 · 중단이 동작하고, api 요청은 실패 응답으로 끝나 스레드 · 커넥션을 놓는다(실험 문서).
+- **COMMIT 순간에 끊기면 결과가 모호하다.** Spring 은 COMMIT 예외 때 AFTER_COMMIT 발행을 하지 않는다. 결제 시작(TX A)이 실제로 commit 됐다면 5주차의 "발송 기록 뒤 멈춤(REQUESTED + 조회 0건)"과, 결과 적용(TX B)이 commit 됐다면 6주차 commit 뒤 발행 누락과 같은 상태가 된다. 재현하지 못해 코드로만 따졌다.
 - **단일 broker:** 복제 수 1 이라 `acks=all` · ISR · broker 장애 내구성을 증명하지 못한다. 실험은 통제된 종료이며 OS 장애 · 네트워크 분할을 시험하지 않는다.
 - **순서:** 주문당 이벤트가 1건이라 같은 key 의 순서 문제는 아직 없다. 한 주문에 이벤트가 여러 건 생기면 DB 쪽 순서 확인이 필요하다.
 
@@ -390,7 +391,7 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 | `docker/infra-compose.yml` | broker 자동 topic 생성 끔, topic 생성 init 단계 |
 | MySQL · Redis · Kafka test fixture | `TEST_LOCAL_INFRA=true` 면 컨테이너 대신 로컬 compose 주소를 씀(두 앱 E2E 실험용, 기본 꺼짐). Kafka fixture 에 컨테이너 접근자(broker 정지 측정용) |
 | commerce-streamer 빌드 | commerce-api 와 같은 checkstyle · ArchUnit 적용 |
-| commerce-streamer 설정 | MySQL 드라이버 `socketTimeout` · `connectTimeout` (D-98) |
+| commerce-streamer · commerce-api 설정 | MySQL 드라이버 `socketTimeout` · `connectTimeout` (D-98, D-99). 공용 `jpa.yml` 이 아니라 앱마다 둬 batch 는 건드리지 않음 |
 
 ## 10. 테스트
 
@@ -478,4 +479,5 @@ low-level `KafkaConsumer` 로 실제 handler 를 호출하되 첫 실행의 offs
 | D-95 | 로컬 · 테스트 broker 의 자동 topic 생성을 끈다. demo topic 도 init 에서 만든다 |
 | D-96 | Kafka 테스트 fixture 는 `modules:kafka` 의 testFixtures 에 둔다 |
 | D-97 | 테스트 broker 는 로컬 compose 와 같은 Kafka 3.5 대로 맞춘다 |
-| D-98 | streamer 에만 MySQL 드라이버 `socketTimeout` 10s · `connectTimeout` 3s 를 둔다. 응답 없는 DB 에서 listener 가 무기한 기다려 재시도 · 상한이 동작하지 않던 것을 막는다. 끊긴 COMMIT 의 모호함은 멱등 처리로 흡수한다. api 는 결제 TX 영향 때문에 두지 않는다 |
+| D-98 | streamer 에 MySQL 드라이버 `socketTimeout` 10s · `connectTimeout` 3s 를 둔다. 응답 없는 DB 에서 listener 가 무기한 기다려 재시도 · 상한이 동작하지 않던 것을 막는다. 끊긴 COMMIT 의 모호함은 멱등 처리로 흡수한다 |
+| D-99 | commerce-api 에도 같은 드라이버 timeout 을 둔다. 장애 때 요청이 스레드 · 커넥션을 쥔 채 기다려 다른 API 까지 멈추는 것을 막는다. COMMIT 이 끊긴 모호한 결과는 이미 받아들인 두 한계(REQUESTED + 조회 0건, commit 뒤 발행 누락)와 같은 상태라 새 위험을 만들지 않는다. 공용 `jpa.yml` 이 아니라 앱 설정에 둬 batch 의 긴 작업에는 영향을 주지 않는다 |

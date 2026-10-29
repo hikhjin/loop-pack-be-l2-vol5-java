@@ -195,3 +195,22 @@ streamer 에 Connector/J `socketTimeout=10000` · `connectTimeout=3000` 을 넣�
 - 응답 없는 장애도 예외가 되어 재시도 · 상한 · 중단이 동작한다. 시도 하나는 12~21초 걸렸다(socket timeout 10초 + 커넥션 획득 · 검증 대기).
 - 운영 설정(간격 합 5분, 시도 약 15번)에 대입하면 실제 중단까지 연결 거부는 약 6분, 응답 없음은 약 8~10분으로 추정된다. 문헌값(30초~2분)의 장애는 그 전에 회복한다.
 - 정상 테스트(`check`)는 모두 통과해 정상 처리를 끊지 않았다. streamer 문장의 실제 최장 시간을 따로 재지는 않았다.
+
+## commerce-api 에 드라이버 timeout 을 둘지: 실제 DB 장애 실험
+
+`apps/commerce-api/.../experiment/ApiDatabaseOutage{Without,With}TimeoutExperiment` (`RUN_EXPERIMENT=true`). 결제 시작(TX A) · PG 결과 적용(TX B) 도중 MySQL 을 `docker pause` 로 40초 멈췄다. timeout 은 실험에만 켰고 실제 api 설정은 바꾸지 않았다.
+
+| 장면 | timeout 없음 | timeout 있음 (socket 10s · connect 3s) |
+|---|---|---|
+| 결제 시작(TX A) 중 장애 | 장애 40초 내내 응답 없음 → 복구 뒤 성공 | **20초에 실패**(`JpaSystemException ← SQLException`), 주문은 DRAFT 로 rollback, PG 호출 0 → 같은 시도 키로 다시 보내 정상 진행 |
+| PG 결과 적용(TX B) 중 장애 | 장애 40초 내내 응답 없음 → 복구 뒤 확정, 이벤트 1 | **20초에 실패**(`CannotCreateTransactionException ← SocketTimeoutException`), 결제 대기 유지 → reconcile 로 확정, 이벤트 1 |
+
+- **timeout 이 없으면** 요청은 DB 가 돌아올 때까지 Tomcat 스레드와 DB 커넥션을 쥔 채 기다린다. 장애가 길면 풀(운영 40)이 묶여 결제와 무관한 API 까지 멈춘다. 대신 DB 가 돌아오면 같은 요청이 그대로 성공해 결과가 모호해지지 않는다.
+- **timeout 이 있으면** 요청은 약 20초에 실패하고 트랜잭션은 rollback 된다(socket timeout 10초 + 커넥션 획득 · 검증 대기). 이 실험의 두 장면은 모두 TX 시작 · 첫 쿼리에서 끊겨 결과가 모호하지 않았고, 기존 복구 경로(같은 시도 키 재요청, reconcile)로 정상 진행했다. 이벤트도 한 번만 나갔다.
+- **COMMIT 순간에 끊기는 경우는 재현하지 못했다.** pause 를 COMMIT 패킷 사이에 정확히 맞추기 어렵다. 대신 코드로 결과를 따졌다.
+  - Spring `AbstractPlatformTransactionManager.processCommit` 은 `doCommit` 이 예외를 던지면 `afterCompletion(STATUS_UNKNOWN)` 만 부르고 `triggerAfterCommit` 을 부르지 않는다(spring-tx 6.2 소스). AFTER_COMMIT 발행은 일어나지 않는다.
+  - **TX A 가 실제로는 commit 됐다면** 결제 시도 REQUESTED · 재고 예약이 남고 PG 생성은 보내지 않은 상태다. 같은 시도 키로 다시 보내면 저장 상태만 돌려줘 PG 를 다시 부르지 않는다. 5주차의 "발송 기록 뒤 멈춤(REQUESTED + 조회 0건)" 한계와 같은 상태다.
+  - **TX B 가 실제로는 commit 됐다면** 주문은 CONFIRMED 인데 이벤트가 나가지 않는다. 다음 reconcile 은 종결 상태라 아무것도 하지 않는다. 6주차 commit 뒤 발행 누락 구간과 같은 상태이며, 7주차 Outbox 가 같은 TX 에 이벤트를 기록하면 사라진다.
+  - commit 되지 않았다면 위 실험과 같이 기존 재시도 경로로 정상 진행한다.
+
+**결정 (D-99): commerce-api 에도 같은 timeout 을 둔다.** 장애가 서비스 전체로 번지는 것을 막는 이득이 크고, COMMIT 이 끊긴 모호한 결과는 이미 받아들인 두 한계와 같은 상태라 새 위험이 아니다. 실험 클래스의 "timeout 없음"은 이제 설정을 0(무한)으로 덮어 적용 전과 같게 만든 기준선이다.
