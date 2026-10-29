@@ -10,28 +10,23 @@ import com.loopers.domain.order.service.OrderService;
 import com.loopers.domain.order.vo.OrderLine;
 import com.loopers.domain.payment.entity.Payment;
 import com.loopers.domain.product.entity.Product;
+import com.loopers.support.kafka.OrderEventsTopicReader;
 import com.loopers.support.pg.TestPgServer;
 import com.loopers.utils.DatabaseCleanUp;
 import jakarta.persistence.EntityManager;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -57,7 +52,7 @@ class OrderConfirmedPublicationTest {
     private OrderService orderService;
 
     @Autowired
-    private KafkaTemplate<Object, Object> kafkaTemplate;
+    private OrderEventsTopicReader topicReader;
 
     @Autowired
     private ProducerFactory<Object, Object> producerFactory;
@@ -73,9 +68,6 @@ class OrderConfirmedPublicationTest {
 
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
-
-    @Value("${order-event.topic}")
-    private String topic;
 
     private final TestPgServer pg = TestPgServer.shared();
     private Brand brand;
@@ -134,41 +126,12 @@ class OrderConfirmedPublicationTest {
         });
     }
 
-    private KafkaConsumer<String, String> consumer() {
-        return new KafkaConsumer<>(Map.of(
-            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.kafka.bootstrap-servers"),
-            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-            ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false
-        ));
-    }
-
-    /** 준비 단계에서 보낸 record 가 아직 전송 중이면 이후 구간에 섞이므로 먼저 flush 함 */
     private Map<TopicPartition, Long> endOffsets() {
-        kafkaTemplate.flush();
-        try (KafkaConsumer<String, String> consumer = consumer()) {
-            List<TopicPartition> partitions = consumer.partitionsFor(topic).stream()
-                .map(info -> new TopicPartition(topic, info.partition()))
-                .toList();
-            return consumer.endOffsets(partitions);
-        }
+        return topicReader.endOffsets();
     }
 
-    /** from 이후 지금 끝 offset 까지 쌓인 record. 끝까지 못 읽으면 실패시켜 무한히 기다리지 않음 */
     private List<ConsumerRecord<String, String>> recordsSince(Map<TopicPartition, Long> from) {
-        kafkaTemplate.flush();
-        try (KafkaConsumer<String, String> consumer = consumer()) {
-            consumer.assign(from.keySet());
-            from.forEach(consumer::seek);
-            Map<TopicPartition, Long> end = consumer.endOffsets(from.keySet());
-            List<ConsumerRecord<String, String>> records = new ArrayList<>();
-            Instant deadline = Instant.now().plusSeconds(10);
-            while (end.entrySet().stream().anyMatch(e -> consumer.position(e.getKey()) < e.getValue())) {
-                assertThat(Instant.now()).as("끝 offset 까지 읽지 못함").isBefore(deadline);
-                consumer.poll(Duration.ofMillis(200)).forEach(records::add);
-            }
-            return records;
-        }
+        return topicReader.recordsSince(from);
     }
 
     private JsonNode payloadOf(ConsumerRecord<String, String> record) throws Exception {
